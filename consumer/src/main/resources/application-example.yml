@@ -1,0 +1,14 @@
+spring:
+  application:
+    name: consumer
+
+server:
+  port: 8081
+
+aws:
+  s3:
+    bucket: your-s3-bucket-name
+    region: us-east-1
+    access-key: YOUR_AWS_ACCESS_KEY_ID
+    secret-key: YOUR_AWS_SECRET_ACCESS_KEY
+    path-style-access-enabled: false

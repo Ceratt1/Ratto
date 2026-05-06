@@ -60,11 +60,11 @@
 		</dependency>
 
 	<!-- generics  -->
-		<!-- <dependency>
+		<dependency>
 			<groupId>com.learnia</groupId>
 			<artifactId>generics</artifactId>
 			<version>1.0-SNAPSHOT</version>
-		</dependency> -->
+		</dependency>
 	<!-- generics  -->
 
 	</dependencies>

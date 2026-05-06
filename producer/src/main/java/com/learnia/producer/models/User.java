@@ -1,6 +1,7 @@
 package com.learnia.producer.models;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.UUID;
 
 import com.learnia.models.BaseEntity;
@@ -15,14 +16,17 @@ import lombok.ToString;
 public class User extends BaseEntity {
     private UUID uuidRequest;
     private String description;
+    private List<File> files;
 
 
-    public static User toDomain(UUID uuidUser, UUID uuidRequest ,String description) {
+    public static User toDomain(UUID uuidUser, UUID uuidRequest ,String description, List<File> files) {
         User user = new User();
-        user.setUuid(uuidRequest);
+        user.setUuid(uuidUser);
         user.setUuidRequest(uuidRequest);
         user.setDescription(description);
+        user.setFiles(files);
         user.setCreatedAt(OffsetDateTime.now());
+
         return user;
     }
 

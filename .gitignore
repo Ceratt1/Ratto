@@ -83,3 +83,8 @@ failsafe-reports/
 # Dependency / package caches
 # =========================
 .dependency-check/
+
+# =========================
+# Local application config
+# =========================
+**/src/main/resources/application.yml

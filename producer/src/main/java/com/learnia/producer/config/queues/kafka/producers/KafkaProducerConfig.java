@@ -13,7 +13,6 @@ import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.core.ProducerFactory;
 import org.springframework.kafka.support.serializer.JsonSerializer;
 
-import com.learnia.producer.models.User;
 import com.learnia.producer.models.dto.UserEventDto;
 
 @Configuration

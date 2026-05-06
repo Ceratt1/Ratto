@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.learnia.producer.models.File;
 import com.learnia.producer.models.User;
 import com.learnia.producer.service.IProducerService;
 import com.learnia.validation.ValidPdfFiles;
@@ -32,14 +33,21 @@ public class ReceiverController {
     
     @PutMapping(value = "/{uuidRequest}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public Mono<String> receive(
-            @PathVariable(value = "uuidRequest", required = true) UUID uuidRequest,
+            @PathVariable(value = "uuidRequest", required = true) String uuidRequest,
             @RequestPart(value = "uuidUser", required = true) String uuidUser,
             @RequestPart(value = "description", required = false) @Length(max = 200) String description,
             @ValidPdfFiles(maxSizeMb = 100) @RequestPart("files") List<FilePart> files) {
 
-        service.sendToTopic(User.toDomain(UUID.fromString(uuidUser), uuidRequest, description));
-        return Mono.just("Received request with uuidRequest: " + uuidRequest + ", uuidUser: " + uuidUser + ", description: " + description + ", and " + files.size() + " files.");
-    }
+        User user = User.toDomain(
+                UUID.fromString(uuidUser),
+                UUID.fromString(uuidRequest),
+                description,
+                files.stream().map(file -> File.toDomain(uuidUser, uuidRequest, file.filename())).toList());
 
-    
+        return service.uploadFilesAndSendToTopic(user, files)
+                .map(savedUser -> "Received request with uuidRequest: " + savedUser.getUuidRequest()
+                        + ", uuidUser: " + savedUser.getUuid()
+                        + ", description: " + savedUser.getDescription()
+                        + ", and " + savedUser.getFiles().size() + " files.");
+    }
 }
