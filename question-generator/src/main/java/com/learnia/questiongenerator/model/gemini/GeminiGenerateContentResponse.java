@@ -14,4 +14,8 @@ public record GeminiGenerateContentResponse(List<GeminiCandidate> candidates) {
         }
         return content.parts().getFirst().text();
     }
+
+    public String firstFinishReason() {
+        return candidates == null || candidates.isEmpty() ? null : candidates.getFirst().finishReason();
+    }
 }

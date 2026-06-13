@@ -23,11 +23,14 @@ import tools.jackson.databind.ObjectMapper;
 @Service
 public class GeminiProblemGenerator implements AiProblemGenerator {
 
+    private static final int MAXIMUM_PROBLEM_COUNT = 5;
+
     private static final String INSTRUCTION = """
             Detect the predominant language of the supplied document.
             Write the document summary, questions, answers, subjects, difficulty labels, and every
             explanation in that same language. For multilingual documents, use the predominant language.
             Create relevant, non-repetitive study questions using only facts from the document.
+            Generate up to 5 questions, prioritizing the document's most important and distinct topics.
             For each question, classify its broad subject and a specific theme suitable for tracking
             learning performance, such as Biology as the subject and Cells as the theme.
             Each question must have exactly four answers. Every answer must state whether it is correct
@@ -58,7 +61,7 @@ public class GeminiProblemGenerator implements AiProblemGenerator {
                     "documentLanguage", GeminiJsonSchema.string(
                             "BCP 47 language tag for the predominant document language"),
                     "documentSummary", GeminiJsonSchema.string(),
-                    "problems", GeminiJsonSchema.array(PROBLEM_SCHEMA, 1, null)));
+                    "problems", GeminiJsonSchema.array(PROBLEM_SCHEMA, 1, MAXIMUM_PROBLEM_COUNT)));
 
     private final WebClient aiWebClient;
     private final ObjectMapper objectMapper;
@@ -106,6 +109,10 @@ public class GeminiProblemGenerator implements AiProblemGenerator {
 
     private GeneratedProblems toGeneratedProblems(GeminiGenerateContentResponse response) {
         try {
+            if ("MAX_TOKENS".equals(response.firstFinishReason())) {
+                throw new IllegalArgumentException("Gemini response was truncated after reaching the output token limit");
+            }
+
             String content = response.firstText();
             if (content == null || content.isBlank()) {
                 throw new IllegalArgumentException("Gemini returned no structured content");

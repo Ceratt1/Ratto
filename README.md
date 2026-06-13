@@ -12,8 +12,8 @@ De forma resumida:
 2. O sistema registra o job e armazena os arquivos no storage.
 3. Um pipeline de ingestão processa os PDFs, extrai o conteúdo e organiza em partes (chunks).
 4. Um gerador de perguntas/respostas usa o conteúdo extraído para produzir respostas estruturadas.
-5. Os resultados são validados, deduplicados e persistidos.
-6. A API expõe o status e os resultados para consumo do serviço cliente.
+5. Um ledger imutável registra cada evento publicado no Kafka.
+6. Os resultados são validados e armazenados no S3.
 
 ## Fluxo do sistema
 
@@ -37,9 +37,11 @@ De forma resumida:
 - Valida e remove duplicidades.
 - Salva resultados finais no banco.
 
-4. **Consulta de Resultado (API)**
-- Disponibiliza status do job.
-- Retorna respostas geradas associadas aos PDFs enviados.
+4. **Auditoria (Event Ledger)**
+- Consome os quatro tópicos atuais sem participar do processamento.
+- Persiste payload, hash SHA-256 e posição Kafka no PostgreSQL.
+- Deduplica por tópico, partição e offset.
+- Rejeita `UPDATE` e `DELETE`; correções devem ser novos eventos.
 
 ## Componentes lógicos
 
@@ -48,7 +50,7 @@ De forma resumida:
 - **Fila (Queue)**: desacoplamento entre etapas.
 - **Serviço de Extração**: leitura/OCR e preparação do conteúdo.
 - **Serviço de Geração**: criação de respostas estruturadas.
-- **Banco de Dados**: jobs, chunks e resultados.
+- **Event Ledger / PostgreSQL**: histórico append-only para auditoria e rastreabilidade.
 
 ## Por que essa arquitetura é genérica
 
@@ -78,6 +80,15 @@ docker compose up -d
 Interface web do Kafka:
 
 - URL: `http://localhost:8080`
+
+O PostgreSQL do ledger fica disponível em `localhost:5432` e o Actuator do serviço em `http://localhost:9073/actuator/health`. Consulte a linha do tempo de uma requisição com:
+
+```bash
+docker exec postgres-ledger psql -U ledger -d learn_ia_ledger \
+  -c "SELECT event_type, source_service, recorded_at FROM event_ledger WHERE uuid_request = '<UUID>' ORDER BY recorded_at;"
+```
+
+O ledger é um event store de auditoria. Um outbox pattern ainda poderá ser adicionado dentro de cada serviço produtor para garantir atomicidade entre alterações locais e publicação no Kafka.
 
 Para parar/remover o container:
 

@@ -2,16 +2,17 @@
 
 ## Project Structure & Processing Order
 
-This repository contains a Next.js frontend and four Java 21/Spring Boot Maven projects:
+This repository contains a Next.js frontend and five Java 21/Spring Boot Maven projects:
 
 - `frontend/`: Next.js App Router UI and BFF for preparing/confirming direct S3 uploads of up to two PDFs.
 - `generics/`: shared event contracts, study-domain models, validation, and AWS S3 utilities. Install it before dependent services.
 - `producer/`: WebFlux API for receiving PDF uploads, storing files, and publishing Kafka events.
 - `pdf-extractor/`: consumes PDF events, extracts text, stores `extracted.txt`, and publishes completion events.
 - `question-generator/`: consumes extracted-text events, calls Gemini, stores typed `questions.json`, and publishes completion events.
+- `event-ledger/`: consumes every application topic and appends immutable, idempotent event records to PostgreSQL.
 - `docs/`: architecture material and sample PDFs.
 
-The runtime order is `producer` -> `pdf-extractor` -> `question-generator`. Kafka carries references and trace metadata; S3 carries document contents and generated artifacts.
+The runtime order is `producer` -> `pdf-extractor` -> `question-generator`. `event-ledger` observes every stage independently. Kafka carries references and trace metadata; S3 carries document contents and generated artifacts.
 
 ## Build and Development Commands
 
@@ -25,9 +26,10 @@ mvn -f generics/pom.xml install
 mvn -f producer/pom.xml spring-boot:run
 mvn -f pdf-extractor/pom.xml spring-boot:run
 mvn -f question-generator/pom.xml spring-boot:run
+mvn -f event-ledger/pom.xml spring-boot:run
 ```
 
-Compose starts the complete pipeline, frontend on `http://localhost:3000`, Kafka on `localhost:9092`, Kafka UI on `http://localhost:8080`, and the producer API on `http://localhost:8070/api`. Actuator and Prometheus endpoints are exposed on ports `9070` (producer), `9071` (pdf-extractor), and `9072` (question-generator).
+Compose starts the complete pipeline, frontend on `http://localhost:3000`, Kafka on `localhost:9092`, Kafka UI on `http://localhost:8080`, PostgreSQL on `localhost:5432`, and the producer API on `http://localhost:8070/api`. Actuator and Prometheus endpoints are exposed on ports `9070` through `9073`.
 
 ## Coding Style & Naming Conventions
 
@@ -38,6 +40,8 @@ Use records or classes for domain objects, API payloads, and Kafka events. Do no
 In `frontend/`, keep business flows under `src/features/`, shared visual components under `src/components/`, and integration routes under `src/app/api/`. Define TypeScript interfaces for every API request and response.
 
 Place every contract, model, utility, configuration component, or abstraction used by multiple services in `generics/`. If a new component is expected to be reused by another service, create it in `generics/` from the start. Keep service-specific API DTOs and implementation details inside their owning service.
+
+Treat `event_ledger` as append-only. Never add application code that updates or deletes ledger rows. New event fields belong in the JSON payload; add indexed generated columns only for established query requirements.
 
 ## Commit & Pull Request Guidelines
 
