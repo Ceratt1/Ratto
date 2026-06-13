@@ -18,7 +18,6 @@ import org.springframework.kafka.core.DefaultKafkaProducerFactory;
 import org.springframework.kafka.core.KafkaAdmin;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.core.ProducerFactory;
-import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
 import org.springframework.kafka.listener.DefaultErrorHandler;
 import org.springframework.kafka.support.serializer.JsonDeserializer;
 import org.springframework.kafka.support.serializer.JsonSerializer;
@@ -26,6 +25,7 @@ import org.springframework.util.backoff.FixedBackOff;
 
 import com.learnia.events.PdfProcessingEvent;
 import com.learnia.events.EventTopics;
+import com.learnia.events.PdfIngestionErrorEvent;
 import com.learnia.events.PdfTextExtractedEvent;
 
 @Configuration
@@ -58,7 +58,7 @@ public class KafkaConsumerConfig {
     }
 
     @Bean
-    public ProducerFactory<String, PdfProcessingEvent> deadLetterProducerFactory() {
+    public ProducerFactory<String, PdfIngestionErrorEvent> errorEventProducerFactory() {
         Map<String, Object> properties = new HashMap<>();
         properties.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
         properties.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
@@ -67,8 +67,8 @@ public class KafkaConsumerConfig {
     }
 
     @Bean
-    public KafkaTemplate<String, PdfProcessingEvent> deadLetterKafkaTemplate() {
-        return new KafkaTemplate<>(deadLetterProducerFactory());
+    public KafkaTemplate<String, PdfIngestionErrorEvent> errorEventKafkaTemplate() {
+        return new KafkaTemplate<>(errorEventProducerFactory());
     }
 
     @Bean
@@ -86,13 +86,22 @@ public class KafkaConsumerConfig {
     }
 
     @Bean
-    public DefaultErrorHandler kafkaErrorHandler(KafkaTemplate<String, PdfProcessingEvent> deadLetterKafkaTemplate) {
-        DeadLetterPublishingRecoverer recoverer = new DeadLetterPublishingRecoverer(
-                deadLetterKafkaTemplate,
-                (record, exception) -> new org.apache.kafka.common.TopicPartition(
-                        EventTopics.PDF_PROCESSING_ERRORS,
-                        record.partition()));
-        return new DefaultErrorHandler(recoverer, new FixedBackOff(2_000L, 3L));
+    public DefaultErrorHandler kafkaErrorHandler(KafkaTemplate<String, PdfIngestionErrorEvent> errorEventKafkaTemplate) {
+        return new DefaultErrorHandler((record, exception) -> {
+            PdfProcessingEvent source = record.value() instanceof PdfProcessingEvent event ? event : null;
+            PdfIngestionErrorEvent error = PdfIngestionErrorEvent.from(
+                    source,
+                    "pdf-extractor",
+                    "PDF_TEXT_EXTRACTION",
+                    record.topic(),
+                    record.partition(),
+                    record.offset(),
+                    exception);
+            String key = source != null && source.fileUuid() != null
+                    ? source.fileUuid().toString()
+                    : record.key() != null ? record.key().toString() : null;
+            errorEventKafkaTemplate.send(EventTopics.PDF_INGESTION_ERRORS, key, error).join();
+        }, new FixedBackOff(2_000L, 3L));
     }
 
     @Bean

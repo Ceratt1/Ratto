@@ -10,5 +10,5 @@ public record PdfTextExtractedEvent(
         String originalFileName,
         String pdfS3Path,
         String extractedTextS3Path,
-        long extractedTextBytes) {
+        long extractedTextBytes) implements PdfIngestionEvent {
 }

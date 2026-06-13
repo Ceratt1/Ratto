@@ -3,6 +3,7 @@ package com.learnia.questiongenerator.config;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.apache.kafka.clients.admin.AdminClientConfig;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
@@ -14,15 +15,16 @@ import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
 import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
 import org.springframework.kafka.core.DefaultKafkaProducerFactory;
+import org.springframework.kafka.core.KafkaAdmin;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.core.ProducerFactory;
-import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
 import org.springframework.kafka.listener.DefaultErrorHandler;
 import org.springframework.kafka.support.serializer.JsonDeserializer;
 import org.springframework.kafka.support.serializer.JsonSerializer;
 import org.springframework.util.backoff.FixedBackOff;
 
 import com.learnia.events.EventTopics;
+import com.learnia.events.PdfIngestionErrorEvent;
 import com.learnia.events.PdfTextExtractedEvent;
 import com.learnia.events.StudyProblemsGeneratedEvent;
 
@@ -36,6 +38,11 @@ public class KafkaConfig {
     }
 
     @Bean
+    public KafkaAdmin kafkaAdmin() {
+        return new KafkaAdmin(Map.of(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers));
+    }
+
+    @Bean
     public ConsumerFactory<String, PdfTextExtractedEvent> consumerFactory() {
         Map<String, Object> properties = baseConsumerProperties();
         properties.put(JsonDeserializer.VALUE_DEFAULT_TYPE, PdfTextExtractedEvent.class.getName());
@@ -43,13 +50,13 @@ public class KafkaConfig {
     }
 
     @Bean
-    public ProducerFactory<String, Object> deadLetterProducerFactory() {
+    public ProducerFactory<String, PdfIngestionErrorEvent> errorEventProducerFactory() {
         return new DefaultKafkaProducerFactory<>(producerProperties());
     }
 
     @Bean
-    public KafkaTemplate<String, Object> deadLetterKafkaTemplate() {
-        return new KafkaTemplate<>(deadLetterProducerFactory());
+    public KafkaTemplate<String, PdfIngestionErrorEvent> errorEventKafkaTemplate() {
+        return new KafkaTemplate<>(errorEventProducerFactory());
     }
 
     @Bean
@@ -63,13 +70,22 @@ public class KafkaConfig {
     }
 
     @Bean
-    public DefaultErrorHandler kafkaErrorHandler(KafkaTemplate<String, Object> deadLetterKafkaTemplate) {
-        DeadLetterPublishingRecoverer recoverer = new DeadLetterPublishingRecoverer(
-                deadLetterKafkaTemplate,
-                (record, exception) -> new org.apache.kafka.common.TopicPartition(
-                        EventTopics.PDF_TEXT_EXTRACTED_ERRORS,
-                        record.partition()));
-        return new DefaultErrorHandler(recoverer, new FixedBackOff(2_000L, 3L));
+    public DefaultErrorHandler kafkaErrorHandler(KafkaTemplate<String, PdfIngestionErrorEvent> errorEventKafkaTemplate) {
+        return new DefaultErrorHandler((record, exception) -> {
+            PdfTextExtractedEvent source = record.value() instanceof PdfTextExtractedEvent event ? event : null;
+            PdfIngestionErrorEvent error = PdfIngestionErrorEvent.from(
+                    source,
+                    "question-generator",
+                    "STUDY_PROBLEM_GENERATION",
+                    record.topic(),
+                    record.partition(),
+                    record.offset(),
+                    exception);
+            String key = source != null && source.fileUuid() != null
+                    ? source.fileUuid().toString()
+                    : record.key() != null ? record.key().toString() : null;
+            errorEventKafkaTemplate.send(EventTopics.PDF_INGESTION_ERRORS, key, error).join();
+        }, new FixedBackOff(2_000L, 3L));
     }
 
     @Bean

@@ -11,5 +11,5 @@ public record PdfProcessingEvent(
         String pdfS3Path,
         String extractedTextS3Path,
         String description,
-        String createdAt) {
+        String createdAt) implements PdfIngestionEvent {
 }

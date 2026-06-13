@@ -10,8 +10,8 @@ import com.learnia.events.EventTopics;
 public class KafkaTopics {
 
     @Bean
-    public NewTopic extractedTextErrorsTopic() {
-        return new NewTopic(EventTopics.PDF_TEXT_EXTRACTED_ERRORS, 2, (short) 1);
+    public NewTopic ingestionErrorsTopic() {
+        return new NewTopic(EventTopics.PDF_INGESTION_ERRORS, 2, (short) 1);
     }
 
     @Bean

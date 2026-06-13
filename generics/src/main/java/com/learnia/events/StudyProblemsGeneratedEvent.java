@@ -13,5 +13,5 @@ public record StudyProblemsGeneratedEvent(
         String aiModel,
         String documentLanguage,
         int problemCount,
-        long outputBytes) {
+        long outputBytes) implements PdfIngestionEvent {
 }

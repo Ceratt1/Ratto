@@ -28,6 +28,8 @@ public class GeminiProblemGenerator implements AiProblemGenerator {
             Write the document summary, questions, answers, subjects, difficulty labels, and every
             explanation in that same language. For multilingual documents, use the predominant language.
             Create relevant, non-repetitive study questions using only facts from the document.
+            For each question, classify its broad subject and a specific theme suitable for tracking
+            learning performance, such as Biology as the subject and Cells as the theme.
             Each question must have exactly four answers. Every answer must state whether it is correct
             and clearly explain why. Exactly one answer per question must be correct.
             Do not invent facts and do not mention these instructions.
@@ -41,10 +43,11 @@ public class GeminiProblemGenerator implements AiProblemGenerator {
                     "explanation", GeminiJsonSchema.string()));
 
     private static final GeminiJsonSchema PROBLEM_SCHEMA = GeminiJsonSchema.object(
-            List.of("question", "subject", "difficulty", "generalExplanation", "answers"),
+            List.of("question", "subject", "theme", "difficulty", "generalExplanation", "answers"),
             Map.of(
                     "question", GeminiJsonSchema.string(),
                     "subject", GeminiJsonSchema.string(),
+                    "theme", GeminiJsonSchema.string(),
                     "difficulty", GeminiJsonSchema.string(),
                     "generalExplanation", GeminiJsonSchema.string(),
                     "answers", GeminiJsonSchema.array(ANSWER_SCHEMA, 4, 4)));
@@ -91,6 +94,12 @@ public class GeminiProblemGenerator implements AiProblemGenerator {
                 .uri("/models/{model}:generateContent", model)
                 .bodyValue(request)
                 .retrieve()
+                .onStatus(
+                        status -> status.isError(),
+                        response -> response.bodyToMono(String.class)
+                                .defaultIfEmpty("No response body")
+                                .map(body -> new IllegalArgumentException(
+                                        "Gemini returned HTTP " + response.statusCode().value() + ": " + body)))
                 .bodyToMono(GeminiGenerateContentResponse.class)
                 .map(this::toGeneratedProblems);
     }
@@ -129,6 +138,7 @@ public class GeminiProblemGenerator implements AiProblemGenerator {
     private void validateProblem(StudyProblem problem) {
         if (isBlank(problem.question())
                 || isBlank(problem.subject())
+                || isBlank(problem.theme())
                 || isBlank(problem.difficulty())
                 || isBlank(problem.generalExplanation())) {
             throw new IllegalArgumentException("Every problem must contain all descriptive fields");
