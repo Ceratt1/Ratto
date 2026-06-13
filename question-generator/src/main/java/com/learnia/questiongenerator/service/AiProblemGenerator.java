@@ -1,5 +1,7 @@
 package com.learnia.questiongenerator.service;
 
+import com.learnia.questiongenerator.model.GeneratedProblems;
+
 import reactor.core.publisher.Mono;
 
 public interface AiProblemGenerator {

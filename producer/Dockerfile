@@ -28,7 +28,7 @@ RUN addgroup -S app && adduser -S app -G app
 COPY --from=build --chown=app:app /workspace/app.jar app.jar
 
 USER app
-EXPOSE 8070
+EXPOSE 8070 9090
 
 ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=75.0 -XX:+ExitOnOutOfMemoryError"
 

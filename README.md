@@ -84,3 +84,21 @@ Para parar/remover o container:
 ```bash
 docker compose down
 ```
+
+## Frontend de upload
+
+O frontend Next.js fica disponível em `http://localhost:3000` e permite enviar até dois PDFs. Ele usa o producer para preparar e confirmar o processamento, enquanto o navegador envia os arquivos diretamente para URLs assinadas do S3.
+
+Antes de testar pelo navegador, configure o CORS do bucket para permitir `PUT` originado pelo frontend local:
+
+```bash
+aws s3api put-bucket-cors \
+  --bucket "$AWS_S3_BUCKET" \
+  --cors-configuration file://docs/s3-cors.json
+```
+
+Depois, suba o pipeline completo:
+
+```bash
+docker compose up --build -d
+```

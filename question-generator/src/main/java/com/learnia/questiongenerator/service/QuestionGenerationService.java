@@ -12,19 +12,26 @@ import com.learnia.events.EventMetadata;
 import com.learnia.events.EventTypes;
 import com.learnia.events.PdfTextExtractedEvent;
 import com.learnia.events.StudyProblemsGeneratedEvent;
+import com.learnia.questiongenerator.model.GeneratedProblems;
 import com.learnia.tools.aws.service.S3StorageService;
 
 import reactor.core.publisher.Mono;
+import tools.jackson.databind.ObjectMapper;
 
 @Service
 public class QuestionGenerationService {
 
     private final S3StorageService s3StorageService;
     private final AiProblemGenerator aiProblemGenerator;
+    private final ObjectMapper objectMapper;
 
-    public QuestionGenerationService(S3StorageService s3StorageService, AiProblemGenerator aiProblemGenerator) {
+    public QuestionGenerationService(
+            S3StorageService s3StorageService,
+            AiProblemGenerator aiProblemGenerator,
+            ObjectMapper objectMapper) {
         this.s3StorageService = s3StorageService;
         this.aiProblemGenerator = aiProblemGenerator;
+        this.objectMapper = objectMapper;
     }
 
     public Mono<StudyProblemsGeneratedEvent> process(PdfTextExtractedEvent event) {
@@ -32,8 +39,11 @@ public class QuestionGenerationService {
         return s3StorageService.downloadFile(event.extractedTextS3Path())
                 .map(bytes -> new String(bytes, StandardCharsets.UTF_8))
                 .flatMap(aiProblemGenerator::generate)
-                .flatMap(result -> s3StorageService.uploadBytes(outputPath, result.content(), "application/json")
-                        .thenReturn(toCompletedEvent(event, outputPath, result)));
+                .flatMap(result -> {
+                    byte[] output = serialize(result);
+                    return s3StorageService.uploadBytes(outputPath, output, "application/json")
+                            .thenReturn(toCompletedEvent(event, outputPath, output.length, result));
+                });
     }
 
     private String outputPath(PdfTextExtractedEvent event) {
@@ -48,6 +58,7 @@ public class QuestionGenerationService {
     private StudyProblemsGeneratedEvent toCompletedEvent(
             PdfTextExtractedEvent event,
             String outputPath,
+            long outputBytes,
             GeneratedProblems result) {
         EventMetadata source = event.metadata();
         UUID correlationId = source != null && source.correlationId() != null
@@ -69,8 +80,16 @@ public class QuestionGenerationService {
                 outputPath,
                 result.aiProvider(),
                 result.aiModel(),
-                result.documentLanguage(),
+                result.problemSet().documentLanguage(),
                 result.problemCount(),
-                result.content().length);
+                outputBytes);
+    }
+
+    private byte[] serialize(GeneratedProblems result) {
+        try {
+            return objectMapper.writeValueAsBytes(result.problemSet());
+        } catch (Exception exception) {
+            throw new IllegalArgumentException("Could not serialize generated study problems", exception);
+        }
     }
 }

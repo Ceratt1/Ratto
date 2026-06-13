@@ -3,6 +3,8 @@
 .idea
 .vscode
 **/target
+**/node_modules
+**/.next
 **/.classpath
 **/.factorypath
 **/.project

@@ -88,3 +88,9 @@ failsafe-reports/
 # Local application config
 # =========================
 **/src/main/resources/application.yml
+.env
+
+# Next.js / Node
+node_modules/
+.next/
+frontend/.env.local

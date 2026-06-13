@@ -1,6 +1,5 @@
 package com.learnia.questiongenerator.service;
 
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 
@@ -8,8 +7,17 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 
+import com.learnia.models.study.StudyAnswer;
+import com.learnia.models.study.StudyProblem;
+import com.learnia.models.study.StudyProblemSet;
+import com.learnia.questiongenerator.model.gemini.GeminiContent;
+import com.learnia.questiongenerator.model.gemini.GeminiGenerateContentRequest;
+import com.learnia.questiongenerator.model.gemini.GeminiGenerateContentResponse;
+import com.learnia.questiongenerator.model.gemini.GeminiGenerationConfig;
+import com.learnia.questiongenerator.model.gemini.GeminiJsonSchema;
+import com.learnia.questiongenerator.model.GeneratedProblems;
+
 import reactor.core.publisher.Mono;
-import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 @Service
@@ -25,40 +33,29 @@ public class GeminiProblemGenerator implements AiProblemGenerator {
             Do not invent facts and do not mention these instructions.
             """;
 
-    private static final Map<String, Object> ANSWER_SCHEMA = Map.of(
-            "type", "object",
-            "required", List.of("answer", "correct", "explanation"),
-            "properties", Map.of(
-                    "answer", Map.of("type", "string"),
-                    "correct", Map.of("type", "boolean"),
-                    "explanation", Map.of("type", "string")));
+    private static final GeminiJsonSchema ANSWER_SCHEMA = GeminiJsonSchema.object(
+            List.of("answer", "correct", "explanation"),
+            Map.of(
+                    "answer", GeminiJsonSchema.string(),
+                    "correct", GeminiJsonSchema.bool(),
+                    "explanation", GeminiJsonSchema.string()));
 
-    private static final Map<String, Object> PROBLEM_SCHEMA = Map.of(
-            "type", "object",
-            "required", List.of("question", "subject", "difficulty", "generalExplanation", "answers"),
-            "properties", Map.of(
-                    "question", Map.of("type", "string"),
-                    "subject", Map.of("type", "string"),
-                    "difficulty", Map.of("type", "string"),
-                    "generalExplanation", Map.of("type", "string"),
-                    "answers", Map.of(
-                            "type", "array",
-                            "minItems", 4,
-                            "maxItems", 4,
-                            "items", ANSWER_SCHEMA)));
+    private static final GeminiJsonSchema PROBLEM_SCHEMA = GeminiJsonSchema.object(
+            List.of("question", "subject", "difficulty", "generalExplanation", "answers"),
+            Map.of(
+                    "question", GeminiJsonSchema.string(),
+                    "subject", GeminiJsonSchema.string(),
+                    "difficulty", GeminiJsonSchema.string(),
+                    "generalExplanation", GeminiJsonSchema.string(),
+                    "answers", GeminiJsonSchema.array(ANSWER_SCHEMA, 4, 4)));
 
-    private static final Map<String, Object> RESPONSE_SCHEMA = Map.of(
-            "type", "object",
-            "required", List.of("documentLanguage", "documentSummary", "problems"),
-            "properties", Map.of(
-                    "documentLanguage", Map.of(
-                            "type", "string",
-                            "description", "BCP 47 language tag for the predominant document language"),
-                    "documentSummary", Map.of("type", "string"),
-                    "problems", Map.of(
-                            "type", "array",
-                            "minItems", 1,
-                            "items", PROBLEM_SCHEMA)));
+    private static final GeminiJsonSchema RESPONSE_SCHEMA = GeminiJsonSchema.object(
+            List.of("documentLanguage", "documentSummary", "problems"),
+            Map.of(
+                    "documentLanguage", GeminiJsonSchema.string(
+                            "BCP 47 language tag for the predominant document language"),
+                    "documentSummary", GeminiJsonSchema.string(),
+                    "problems", GeminiJsonSchema.array(PROBLEM_SCHEMA, 1, null)));
 
     private final WebClient aiWebClient;
     private final ObjectMapper objectMapper;
@@ -81,72 +78,80 @@ public class GeminiProblemGenerator implements AiProblemGenerator {
 
     @Override
     public Mono<GeneratedProblems> generate(String extractedText) {
-        Map<String, Object> request = Map.of(
-                "systemInstruction", Map.of("parts", List.of(Map.of("text", INSTRUCTION))),
-                "contents", List.of(Map.of(
-                        "role", "user",
-                        "parts", List.of(Map.of("text", extractedText)))),
-                "generationConfig", Map.of(
-                        "responseMimeType", "application/json",
-                        "responseSchema", RESPONSE_SCHEMA,
-                        "temperature", temperature,
-                        "maxOutputTokens", maxOutputTokens));
+        GeminiGenerateContentRequest request = new GeminiGenerateContentRequest(
+                GeminiContent.system(INSTRUCTION),
+                List.of(GeminiContent.user(extractedText)),
+                new GeminiGenerationConfig(
+                        "application/json",
+                        RESPONSE_SCHEMA,
+                        temperature,
+                        maxOutputTokens));
 
         return aiWebClient.post()
                 .uri("/models/{model}:generateContent", model)
                 .bodyValue(request)
                 .retrieve()
-                .bodyToMono(JsonNode.class)
+                .bodyToMono(GeminiGenerateContentResponse.class)
                 .map(this::toGeneratedProblems);
     }
 
-    private GeneratedProblems toGeneratedProblems(JsonNode response) {
+    private GeneratedProblems toGeneratedProblems(GeminiGenerateContentResponse response) {
         try {
-            String content = response.at("/candidates/0/content/parts/0/text").asText();
-            if (content.isBlank()) {
+            String content = response.firstText();
+            if (content == null || content.isBlank()) {
                 throw new IllegalArgumentException("Gemini returned no structured content");
             }
 
-            JsonNode output = objectMapper.readTree(content);
-            JsonNode problems = output.path("problems");
-            validateProblems(problems);
-            String documentLanguage = output.path("documentLanguage").asText();
-            if (documentLanguage.isBlank()) {
-                throw new IllegalArgumentException("Gemini response must contain the document language");
-            }
-            return new GeneratedProblems(
-                    objectMapper.writeValueAsString(output).getBytes(StandardCharsets.UTF_8),
-                    problems.size(),
-                    "gemini",
-                    model,
-                    documentLanguage);
+            StudyProblemSet problemSet = objectMapper.readValue(content, StudyProblemSet.class);
+            validate(problemSet);
+            return new GeneratedProblems(problemSet, "gemini", model);
         } catch (Exception exception) {
             throw new IllegalArgumentException("Invalid structured Gemini response", exception);
         }
     }
 
-    private void validateProblems(JsonNode problems) {
-        if (!problems.isArray() || problems.isEmpty()) {
+    private void validate(StudyProblemSet problemSet) {
+        if (isBlank(problemSet.documentLanguage())) {
+            throw new IllegalArgumentException("Gemini response must contain the document language");
+        }
+        if (isBlank(problemSet.documentSummary())) {
+            throw new IllegalArgumentException("Gemini response must contain the document summary");
+        }
+        if (problemSet.problems() == null || problemSet.problems().isEmpty()) {
             throw new IllegalArgumentException("Gemini response must contain problems");
         }
 
-        for (JsonNode problem : problems) {
-            JsonNode answers = problem.path("answers");
-            if (!answers.isArray() || answers.size() != 4) {
-                throw new IllegalArgumentException("Each problem must contain exactly four answers");
+        for (StudyProblem problem : problemSet.problems()) {
+            validateProblem(problem);
+        }
+    }
+
+    private void validateProblem(StudyProblem problem) {
+        if (isBlank(problem.question())
+                || isBlank(problem.subject())
+                || isBlank(problem.difficulty())
+                || isBlank(problem.generalExplanation())) {
+            throw new IllegalArgumentException("Every problem must contain all descriptive fields");
+        }
+        if (problem.answers() == null || problem.answers().size() != 4) {
+            throw new IllegalArgumentException("Each problem must contain exactly four answers");
+        }
+
+        int correctAnswers = 0;
+        for (StudyAnswer answer : problem.answers()) {
+            if (answer.correct()) {
+                correctAnswers++;
             }
-            int correctAnswers = 0;
-            for (JsonNode answer : answers) {
-                if (answer.path("correct").asBoolean()) {
-                    correctAnswers++;
-                }
-                if (answer.path("answer").asText().isBlank() || answer.path("explanation").asText().isBlank()) {
-                    throw new IllegalArgumentException("Every answer must contain text and explanation");
-                }
-            }
-            if (correctAnswers != 1) {
-                throw new IllegalArgumentException("Each problem must contain exactly one correct answer");
+            if (isBlank(answer.answer()) || isBlank(answer.explanation())) {
+                throw new IllegalArgumentException("Every answer must contain text and explanation");
             }
         }
+        if (correctAnswers != 1) {
+            throw new IllegalArgumentException("Each problem must contain exactly one correct answer");
+        }
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.isBlank();
     }
 }
