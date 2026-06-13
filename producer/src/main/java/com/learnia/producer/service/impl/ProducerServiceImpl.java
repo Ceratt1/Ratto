@@ -1,7 +1,11 @@
 package com.learnia.producer.service.impl;
 
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.codec.multipart.FilePart;
@@ -9,33 +13,37 @@ import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 
 import com.learnia.producer.models.User;
-import com.learnia.producer.models.dto.UserEventDto;
+import com.learnia.producer.models.File;
+import com.learnia.events.EventIdFactory;
+import com.learnia.events.EventMetadata;
+import com.learnia.events.EventTopics;
+import com.learnia.events.EventTypes;
+import com.learnia.events.PdfProcessingEvent;
+import com.learnia.producer.models.dto.ConfirmDirectUploadRequest;
+import com.learnia.producer.models.dto.ConfirmFileUploadRequest;
+import com.learnia.producer.models.dto.DirectUploadFileRequest;
+import com.learnia.producer.models.dto.DirectUploadRequest;
+import com.learnia.producer.models.dto.PreparedFileUploadDto;
+import com.learnia.producer.models.dto.PreparedUploadDto;
 import com.learnia.producer.service.IProducerService;
 import com.learnia.tools.aws.model.S3UploadRequest;
 import com.learnia.tools.aws.service.S3StorageService;
 
 import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Schedulers;
+import reactor.core.publisher.Flux;
+
 @Service
 public class ProducerServiceImpl implements IProducerService {
 
-    private final KafkaTemplate<String, UserEventDto> kafkaTemplate;
+    private final KafkaTemplate<String, PdfProcessingEvent> kafkaTemplate;
     private final S3StorageService s3StorageService;
-
-    private final String TOPIC = "knowledgement-topic";
 
     @Autowired
     public ProducerServiceImpl(
-            KafkaTemplate<String, UserEventDto> kafkaTemplate,
+            KafkaTemplate<String, PdfProcessingEvent> kafkaTemplate,
             S3StorageService s3StorageService) {
         this.kafkaTemplate = kafkaTemplate;
         this.s3StorageService = s3StorageService;
-    }
-
-    @Override
-    public User sendToTopic(User user) {
-        kafkaTemplate.send(TOPIC, user.getUuidRequest().toString(), UserEventDto.from(user));
-        return user;
     }
 
     @Override
@@ -46,7 +54,105 @@ public class ProducerServiceImpl implements IProducerService {
         }
 
         return s3StorageService.uploadFiles(uploadRequests)
-                .then(Mono.fromCallable(() -> sendToTopic(user))
-                        .subscribeOn(Schedulers.boundedElastic()));
+                .then(publishFiles(user))
+                .thenReturn(user);
+    }
+
+    @Override
+    public Mono<PreparedUploadDto> prepareDirectUpload(UUID uuidRequest, DirectUploadRequest request) {
+        validateUniqueFileNames(request);
+
+        return Flux.fromIterable(request.files())
+                .flatMapSequential(fileRequest -> {
+                    File file = File.toDomain(
+                            request.uuidUser().toString(),
+                            uuidRequest.toString(),
+                            fileRequest.fileName());
+                    return s3StorageService.createPresignedUploadUrl(
+                                    file.getS3Path(),
+                                    fileRequest.resolvedContentType())
+                            .map(url -> new PreparedFileUploadDto(
+                                    file.getUuid(),
+                                    fileRequest.fileName(),
+                                    file.getS3Path(),
+                                    url,
+                                    fileRequest.resolvedContentType()));
+                })
+                .collectList()
+                .map(files -> new PreparedUploadDto(uuidRequest, request.uuidUser(), files));
+    }
+
+    @Override
+    public Mono<User> confirmDirectUpload(UUID uuidRequest, ConfirmDirectUploadRequest request) {
+        validatePreparedFiles(uuidRequest, request);
+        User user = toUser(uuidRequest, request);
+
+        return Flux.fromIterable(user.getFiles())
+                .flatMap(file -> s3StorageService.objectExists(file.getS3Path())
+                        .flatMap(exists -> exists
+                                ? Mono.empty()
+                                : Mono.error(new IllegalArgumentException(
+                                        "File was not uploaded to S3: " + file.getS3Path()))))
+                .then(publishFiles(user))
+                .thenReturn(user);
+    }
+
+    private User toUser(UUID uuidRequest, ConfirmDirectUploadRequest request) {
+        List<File> files = request.files().stream()
+                .map(file -> File.fromPreparedUpload(file.fileUuid(), file.fileName(), file.s3Path()))
+                .toList();
+        return User.toDomain(request.uuidUser(), uuidRequest, request.description(), files);
+    }
+
+    private Mono<Void> publishFiles(User user) {
+        return Flux.fromIterable(user.getFiles())
+                .concatMap(file -> Mono.fromFuture(() -> kafkaTemplate.send(
+                        EventTopics.PDF_PROCESSING_REQUESTED,
+                        file.getUuid().toString(),
+                        toEvent(user, file))))
+                .then();
+    }
+
+    private PdfProcessingEvent toEvent(User user, File file) {
+        return new PdfProcessingEvent(
+                new EventMetadata(
+                        EventIdFactory.forFile(EventTypes.PDF_PROCESSING_REQUESTED, file.getUuid()),
+                        user.getUuidRequest(),
+                        null,
+                        EventTypes.PDF_PROCESSING_REQUESTED,
+                        "producer",
+                        "1",
+                        OffsetDateTime.now(ZoneOffset.UTC).toString()),
+                user.getUuid(),
+                user.getUuidRequest(),
+                file.getUuid(),
+                file.getFileName(),
+                file.getS3Path(),
+                file.getExtractedTextS3Path(),
+                user.getDescription(),
+                user.getCreatedAt() != null ? user.getCreatedAt().toString() : null);
+    }
+
+    private void validateUniqueFileNames(DirectUploadRequest request) {
+        HashSet<String> fileNames = new HashSet<>();
+        for (DirectUploadFileRequest file : request.files()) {
+            if (!fileNames.add(file.fileName())) {
+                throw new IllegalArgumentException("Duplicate fileName: " + file.fileName());
+            }
+        }
+    }
+
+    private void validatePreparedFiles(UUID uuidRequest, ConfirmDirectUploadRequest request) {
+        HashSet<UUID> fileUuids = new HashSet<>();
+        for (ConfirmFileUploadRequest file : request.files()) {
+            String expectedPath = "requests/" + request.uuidUser() + "/" + uuidRequest + "/"
+                    + file.fileUuid() + "/original.pdf";
+            if (!expectedPath.equals(file.s3Path())) {
+                throw new IllegalArgumentException("Invalid S3 path for file: " + file.fileName());
+            }
+            if (!fileUuids.add(file.fileUuid())) {
+                throw new IllegalArgumentException("Duplicate fileUuid: " + file.fileUuid());
+            }
+        }
     }
 }

@@ -20,6 +20,8 @@ import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
 import software.amazon.awssdk.services.s3.S3Configuration;
+import software.amazon.awssdk.services.s3.presigner.S3Presigner;
+import software.amazon.awssdk.services.s3.presigner.S3Presigner.Builder;
 
 @AutoConfiguration
 @EnableConfigurationProperties(S3Properties.class)
@@ -55,8 +57,32 @@ public class S3AutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public S3Tool s3Tool(S3Client s3Client) {
-        return new S3ToolImpl(s3Client);
+    public S3Presigner s3Presigner(S3Properties properties) {
+        Builder builder = S3Presigner.builder()
+                .region(Region.of(properties.getRegion()))
+                .serviceConfiguration(S3Configuration.builder()
+                        .pathStyleAccessEnabled(properties.isPathStyleAccessEnabled())
+                        .build());
+
+        if (properties.getEndpoint() != null && !properties.getEndpoint().isBlank()) {
+            builder.endpointOverride(URI.create(properties.getEndpoint()));
+        }
+
+        if (properties.getAccessKey() != null && !properties.getAccessKey().isBlank()
+                && properties.getSecretKey() != null && !properties.getSecretKey().isBlank()) {
+            builder.credentialsProvider(StaticCredentialsProvider.create(
+                    AwsBasicCredentials.create(properties.getAccessKey(), properties.getSecretKey())));
+        } else {
+            builder.credentialsProvider(DefaultCredentialsProvider.create());
+        }
+
+        return builder.build();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public S3Tool s3Tool(S3Client s3Client, S3Presigner s3Presigner) {
+        return new S3ToolImpl(s3Client, s3Presigner);
     }
 
     @Bean

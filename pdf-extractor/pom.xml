@@ -9,10 +9,10 @@
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
 	<groupId>com.learnia</groupId>
-	<artifactId>consumer</artifactId>
+	<artifactId>pdf-extractor</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
-	<name>consumer</name>
-	<description>Demo project for Spring Boot</description>
+	<name>pdf-extractor</name>
+	<description>PDF text extraction worker</description>
 	<url/>
 	<licenses>
 		<license/>
@@ -32,20 +32,15 @@
 	<dependencies>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-webflux</artifactId>
+			<artifactId>spring-boot-starter</artifactId>
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-validation</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>org.projectlombok</groupId>
-			<artifactId>lombok</artifactId>
-			<optional>true</optional>
+			<artifactId>spring-boot-starter-kafka</artifactId>
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-webflux-test</artifactId>
+			<artifactId>spring-boot-starter-test</artifactId>
 			<scope>test</scope>
 		</dependency>
 		<dependency>
@@ -87,7 +82,7 @@
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
 				<configuration>
-					<mainClass>com.learnia.consumer.ConsumerApplication</mainClass>
+					<mainClass>com.learnia.consumer.PdfExtractorApplication</mainClass>
 					<excludes>
 						<exclude>
 							<groupId>org.projectlombok</groupId>

@@ -21,12 +21,25 @@ public class File extends BaseEntity {
         File file = new File();
         file.setUuid(UUID.randomUUID());
         file.setCreatedAt(OffsetDateTime.now());
-        file.setFileName(file.getUuid() + "-" + fileName);
-        file.setS3Path(buildS3Path(uuidUser ,uuidRequest, fileName));
+        file.setFileName(fileName);
+        file.setS3Path(buildS3Path(uuidUser, uuidRequest, file.getUuid()));
         return file;
     }
 
-    private static String buildS3Path(String uuidUser ,String uuidRequest, String fileName) {
-        return "requests/" + uuidUser + "/" + uuidRequest + "/" + fileName;
+    public static File fromPreparedUpload(UUID fileUuid, String fileName, String s3Path) {
+        File file = new File();
+        file.setUuid(fileUuid);
+        file.setCreatedAt(OffsetDateTime.now());
+        file.setFileName(fileName);
+        file.setS3Path(s3Path);
+        return file;
+    }
+
+    public String getExtractedTextS3Path() {
+        return s3Path.substring(0, s3Path.lastIndexOf('/') + 1) + "extracted.txt";
+    }
+
+    private static String buildS3Path(String uuidUser, String uuidRequest, UUID fileUuid) {
+        return "requests/" + uuidUser + "/" + uuidRequest + "/" + fileUuid + "/original.pdf";
     }
 }

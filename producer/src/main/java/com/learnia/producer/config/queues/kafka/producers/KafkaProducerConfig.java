@@ -13,7 +13,7 @@ import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.core.ProducerFactory;
 import org.springframework.kafka.support.serializer.JsonSerializer;
 
-import com.learnia.producer.models.dto.UserEventDto;
+import com.learnia.events.PdfProcessingEvent;
 
 @Configuration
 public class KafkaProducerConfig {
@@ -25,7 +25,7 @@ public class KafkaProducerConfig {
     }
 
     @Bean
-    public ProducerFactory<String, UserEventDto> userFactory() {
+    public ProducerFactory<String, PdfProcessingEvent> pdfProcessingEventFactory() {
         Map<String, Object> configProps = new HashMap<>();
         configProps.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, BOOTSTRAP_SERVERS);
         configProps.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
@@ -34,7 +34,7 @@ public class KafkaProducerConfig {
     }
 
     @Bean
-    public KafkaTemplate<String, UserEventDto> kafkaTemplateUser() {
-        return new KafkaTemplate<>(userFactory());
+    public KafkaTemplate<String, PdfProcessingEvent> kafkaTemplate() {
+        return new KafkaTemplate<>(pdfProcessingEventFactory());
     }
 }

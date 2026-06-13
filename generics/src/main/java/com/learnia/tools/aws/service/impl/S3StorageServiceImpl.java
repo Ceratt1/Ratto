@@ -1,6 +1,7 @@
 package com.learnia.tools.aws.service.impl;
 
 import java.io.ByteArrayInputStream;
+import java.time.Duration;
 import java.util.List;
 
 import org.springframework.core.io.buffer.DataBufferUtils;
@@ -50,7 +51,45 @@ public class S3StorageServiceImpl implements S3StorageService {
     @Override
     public Mono<Void> uploadFiles(List<S3UploadRequest> requests) {
         return Flux.fromIterable(requests)
-                .concatMap(this::uploadFile)
+                .flatMap(this::uploadFile, 3)
+                .then();
+    }
+
+    @Override
+    public Mono<String> createPresignedUploadUrl(String key, String contentType) {
+        validateBucketConfiguration();
+        return Mono.fromCallable(() -> s3Tool.createPresignedPutUrl(
+                        s3Properties.getBucket(),
+                        key,
+                        contentType,
+                        Duration.ofMinutes(s3Properties.getPresignedUrlDurationMinutes())))
+                .subscribeOn(Schedulers.boundedElastic());
+    }
+
+    @Override
+    public Mono<Boolean> objectExists(String key) {
+        validateBucketConfiguration();
+        return Mono.fromCallable(() -> s3Tool.objectExists(s3Properties.getBucket(), key))
+                .subscribeOn(Schedulers.boundedElastic());
+    }
+
+    @Override
+    public Mono<byte[]> downloadFile(String key) {
+        validateBucketConfiguration();
+        return Mono.fromCallable(() -> s3Tool.getObject(s3Properties.getBucket(), key))
+                .subscribeOn(Schedulers.boundedElastic());
+    }
+
+    @Override
+    public Mono<Void> uploadBytes(String key, byte[] content, String contentType) {
+        validateBucketConfiguration();
+        return Mono.fromRunnable(() -> s3Tool.putObject(
+                        s3Properties.getBucket(),
+                        key,
+                        new ByteArrayInputStream(content),
+                        content.length,
+                        contentType))
+                .subscribeOn(Schedulers.boundedElastic())
                 .then();
     }
 

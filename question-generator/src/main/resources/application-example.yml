@@ -1,14 +1,18 @@
 spring:
   application:
-    name: producer
-  webflux:
-    base-path: /api
-
-server:
-  port: 8070
+    name: question-generator
+  main:
+    web-application-type: none
 
 kafka:
   bootstrap-servers: localhost:9092
+
+ai:
+  base-url: https://generativelanguage.googleapis.com/v1beta
+  api-key: YOUR_GEMINI_API_KEY
+  model: gemini-2.5-flash
+  temperature: 0.2
+  max-output-tokens: 8192
 
 aws:
   s3:
@@ -17,4 +21,3 @@ aws:
     access-key: YOUR_AWS_ACCESS_KEY_ID
     secret-key: YOUR_AWS_SECRET_ACCESS_KEY
     path-style-access-enabled: false
-    presigned-url-duration-minutes: 15

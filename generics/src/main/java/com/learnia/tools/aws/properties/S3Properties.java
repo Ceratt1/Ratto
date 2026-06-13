@@ -11,6 +11,7 @@ public class S3Properties {
     private String accessKey;
     private String secretKey;
     private boolean pathStyleAccessEnabled;
+    private long presignedUrlDurationMinutes = 15;
 
     public String getBucket() {
         return bucket;
@@ -58,5 +59,13 @@ public class S3Properties {
 
     public void setPathStyleAccessEnabled(boolean pathStyleAccessEnabled) {
         this.pathStyleAccessEnabled = pathStyleAccessEnabled;
+    }
+
+    public long getPresignedUrlDurationMinutes() {
+        return presignedUrlDurationMinutes;
+    }
+
+    public void setPresignedUrlDurationMinutes(long presignedUrlDurationMinutes) {
+        this.presignedUrlDurationMinutes = presignedUrlDurationMinutes;
     }
 }

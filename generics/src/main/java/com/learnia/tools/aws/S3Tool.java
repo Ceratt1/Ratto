@@ -1,6 +1,7 @@
 package com.learnia.tools.aws;
 
 import java.io.InputStream;
+import java.time.Duration;
 
 public interface S3Tool {
 
@@ -9,4 +10,8 @@ public interface S3Tool {
     byte[] getObject(String bucket, String key);
 
     void deleteObject(String bucket, String key);
+
+    String createPresignedPutUrl(String bucket, String key, String contentType, Duration duration);
+
+    boolean objectExists(String bucket, String key);
 }

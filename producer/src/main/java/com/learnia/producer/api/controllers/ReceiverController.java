@@ -5,20 +5,28 @@ import java.util.UUID;
 
 import org.hibernate.validator.constraints.Length;
 import org.springframework.http.MediaType;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.http.codec.multipart.FilePart;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestPart;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.learnia.producer.models.File;
 import com.learnia.producer.models.User;
+import com.learnia.producer.models.dto.ConfirmDirectUploadRequest;
+import com.learnia.producer.models.dto.DirectUploadRequest;
+import com.learnia.producer.models.dto.PreparedUploadDto;
 import com.learnia.producer.service.IProducerService;
 import com.learnia.validation.ValidPdfFiles;
 
 import reactor.core.publisher.Mono;
+import jakarta.validation.Valid;
 
 @RestController
 @Validated
@@ -49,5 +57,20 @@ public class ReceiverController {
                         + ", uuidUser: " + savedUser.getUuid()
                         + ", description: " + savedUser.getDescription()
                         + ", and " + savedUser.getFiles().size() + " files.");
+    }
+
+    @PostMapping(value = "/{uuidRequest}/uploads", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public Mono<PreparedUploadDto> prepareDirectUpload(
+            @PathVariable UUID uuidRequest,
+            @Valid @RequestBody DirectUploadRequest request) {
+        return service.prepareDirectUpload(uuidRequest, request);
+    }
+
+    @PostMapping(value = "/{uuidRequest}/confirm", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public Mono<ResponseEntity<Void>> confirmDirectUpload(
+            @PathVariable UUID uuidRequest,
+            @Valid @RequestBody ConfirmDirectUploadRequest request) {
+        return service.confirmDirectUpload(uuidRequest, request)
+                .thenReturn(ResponseEntity.status(HttpStatus.ACCEPTED).build());
     }
 }
