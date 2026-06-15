@@ -10,10 +10,14 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request): Promise<NextResponse> {
+  const authorization = request.headers.get("authorization");
+  if (!authorization?.startsWith("Bearer ")) {
+    return NextResponse.json({ message: "Token ausente." }, { status: 401 });
+  }
   try {
     const payload = (await request.json()) as DirectUploadRequest;
     const uuidRequest = crypto.randomUUID();
-    const prepared = await prepareUpload(uuidRequest, payload);
+    const prepared = await prepareUpload(uuidRequest, payload, authorization);
     return NextResponse.json(prepared);
   } catch (error) {
     return errorResponse(error);

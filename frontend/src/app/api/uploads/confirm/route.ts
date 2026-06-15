@@ -11,19 +11,30 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request): Promise<NextResponse> {
+  const authorization = request.headers.get("authorization");
+  if (!authorization?.startsWith("Bearer ")) {
+    return NextResponse.json({ message: "Token ausente." }, { status: 401 });
+  }
   try {
     const command = (await request.json()) as ConfirmUploadCommand;
-    await confirmUpload(command.uuidRequest, command.request);
+    await confirmUpload(command.uuidRequest, command.request, authorization);
     const result: UploadResult = {
-      uuidUser: command.request.uuidUser,
+      uuidUser: subjectFromToken(authorization),
       uuidRequest: command.uuidRequest,
       files: command.request.files,
-      message: "Uploads confirmados. O processamento assíncrono foi iniciado.",
+      message: "Materiais recebidos. Suas questões de estudo estão sendo preparadas.",
     };
     return NextResponse.json(result, { status: 202 });
   } catch (error) {
     return errorResponse(error);
   }
+}
+
+function subjectFromToken(authorization: string): string {
+  const payload = authorization.slice("Bearer ".length).split(".")[1];
+  const claims = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as { sub?: string };
+  if (!claims.sub) throw new Error("Token sem subject.");
+  return claims.sub;
 }
 
 function errorResponse(error: unknown): NextResponse<ApiError> {

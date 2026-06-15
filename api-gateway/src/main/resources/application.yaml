@@ -1,0 +1,137 @@
+spring:
+  application:
+    name: api-gateway
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:3000/realms/learn-ia
+          jwk-set-uri: http://localhost:8081/realms/learn-ia/protocol/openid-connect/certs
+  cloud:
+    gateway:
+      server:
+        webflux:
+          httpclient:
+            connect-timeout: 2000
+            response-timeout: 15s
+          routes:
+            - id: keycloak-realms
+              uri: ${gateway.routes.keycloak-url}
+              predicates:
+                - Path=/realms/**
+            - id: keycloak-resources
+              uri: ${gateway.routes.keycloak-url}
+              predicates:
+                - Path=/resources/**
+            - id: keycloak-admin
+              uri: ${gateway.routes.keycloak-url}
+              predicates:
+                - Path=/admin/**
+            - id: frontend-auth-config
+              uri: ${gateway.routes.frontend-url}
+              predicates:
+                - Path=/api/auth/config
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: frontend
+                    fallbackUri: forward:/gateway-fallback
+            - id: frontend-bff
+              uri: ${gateway.routes.frontend-url}
+              predicates:
+                - Path=/api/uploads/**,/api/users/me
+              filters:
+                - name: RequestSize
+                  args:
+                    maxSize: 1MB
+                - name: CircuitBreaker
+                  args:
+                    name: frontend
+                    fallbackUri: forward:/gateway-fallback
+            - id: core-api
+              uri: ${gateway.routes.core-url}
+              predicates:
+                - Path=/api/v1/users/**
+              filters:
+                - name: RequestSize
+                  args:
+                    maxSize: 1MB
+                - name: CircuitBreaker
+                  args:
+                    name: core
+                    fallbackUri: forward:/gateway-fallback
+            - id: producer-prepare
+              uri: ${gateway.routes.producer-url}
+              predicates:
+                - Path=/api/v1/receiver/*/uploads
+                - Method=POST
+              filters:
+                - name: RequestSize
+                  args:
+                    maxSize: 1MB
+                - name: CircuitBreaker
+                  args:
+                    name: producer
+                    fallbackUri: forward:/gateway-fallback
+            - id: producer-confirm
+              uri: ${gateway.routes.producer-url}
+              predicates:
+                - Path=/api/v1/receiver/*/confirm
+                - Method=POST
+              filters:
+                - name: RequestSize
+                  args:
+                    maxSize: 1MB
+                - name: CircuitBreaker
+                  args:
+                    name: producer
+                    fallbackUri: forward:/gateway-fallback
+            - id: frontend
+              uri: ${gateway.routes.frontend-url}
+              predicates:
+                - Path=/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: frontend
+                    fallbackUri: forward:/gateway-fallback
+
+gateway:
+  routes:
+    frontend-url: ${GATEWAY_ROUTES_FRONTEND_URL:http://localhost:3000}
+    keycloak-url: ${GATEWAY_ROUTES_KEYCLOAK_URL:http://localhost:8081}
+    core-url: ${GATEWAY_ROUTES_CORE_URL:http://localhost:8071}
+    producer-url: ${GATEWAY_ROUTES_PRODUCER_URL:http://localhost:8070}
+
+security:
+  audience: ${SECURITY_AUDIENCE:gateway-api}
+
+server:
+  port: ${SERVER_PORT:8080}
+  forward-headers-strategy: framework
+
+management:
+  server:
+    port: ${MANAGEMENT_SERVER_PORT:9090}
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus,gateway
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: always
+
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        sliding-window-size: 20
+        minimum-number-of-calls: 5
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 15s
+  timelimiter:
+    configs:
+      default:
+        timeout-duration: 15s

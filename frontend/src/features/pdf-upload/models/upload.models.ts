@@ -4,7 +4,6 @@ export interface DirectUploadFileRequest {
 }
 
 export interface DirectUploadRequest {
-  uuidUser: string;
   description?: string;
   files: DirectUploadFileRequest[];
 }
@@ -30,7 +29,6 @@ export interface ConfirmFileUploadRequest {
 }
 
 export interface ConfirmDirectUploadRequest {
-  uuidUser: string;
   description?: string;
   files: ConfirmFileUploadRequest[];
 }

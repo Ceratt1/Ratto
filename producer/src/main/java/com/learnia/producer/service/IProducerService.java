@@ -16,7 +16,7 @@ public interface IProducerService {
     
     Mono<User> uploadFilesAndSendToTopic(User user, List<FilePart> files);
 
-    Mono<PreparedUploadDto> prepareDirectUpload(UUID uuidRequest, DirectUploadRequest request);
+    Mono<PreparedUploadDto> prepareDirectUpload(UUID uuidUser, UUID uuidRequest, DirectUploadRequest request);
 
-    Mono<User> confirmDirectUpload(UUID uuidRequest, ConfirmDirectUploadRequest request);
+    Mono<User> confirmDirectUpload(UUID uuidUser, UUID uuidRequest, ConfirmDirectUploadRequest request);
 }

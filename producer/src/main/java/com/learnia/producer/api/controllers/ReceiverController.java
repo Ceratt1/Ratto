@@ -8,6 +8,8 @@ import org.springframework.http.MediaType;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.codec.multipart.FilePart;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -42,15 +44,16 @@ public class ReceiverController {
     @PutMapping(value = "/{uuidRequest}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public Mono<String> receive(
             @PathVariable(value = "uuidRequest", required = true) String uuidRequest,
-            @RequestPart(value = "uuidUser", required = true) String uuidUser,
             @RequestPart(value = "description", required = false) @Length(max = 200) String description,
-            @ValidPdfFiles(maxSizeMb = 100) @RequestPart("files") List<FilePart> files) {
+            @ValidPdfFiles(maxSizeMb = 100) @RequestPart("files") List<FilePart> files,
+            @AuthenticationPrincipal Jwt jwt) {
 
+        UUID uuidUser = UUID.fromString(jwt.getSubject());
         User user = User.toDomain(
-                UUID.fromString(uuidUser),
+                uuidUser,
                 UUID.fromString(uuidRequest),
                 description,
-                files.stream().map(file -> File.toDomain(uuidUser, uuidRequest, file.filename())).toList());
+                files.stream().map(file -> File.toDomain(uuidUser.toString(), uuidRequest, file.filename())).toList());
 
         return service.uploadFilesAndSendToTopic(user, files)
                 .map(savedUser -> "Received request with uuidRequest: " + savedUser.getUuidRequest()
@@ -62,15 +65,17 @@ public class ReceiverController {
     @PostMapping(value = "/{uuidRequest}/uploads", consumes = MediaType.APPLICATION_JSON_VALUE)
     public Mono<PreparedUploadDto> prepareDirectUpload(
             @PathVariable UUID uuidRequest,
-            @Valid @RequestBody DirectUploadRequest request) {
-        return service.prepareDirectUpload(uuidRequest, request);
+            @Valid @RequestBody DirectUploadRequest request,
+            @AuthenticationPrincipal Jwt jwt) {
+        return service.prepareDirectUpload(UUID.fromString(jwt.getSubject()), uuidRequest, request);
     }
 
     @PostMapping(value = "/{uuidRequest}/confirm", consumes = MediaType.APPLICATION_JSON_VALUE)
     public Mono<ResponseEntity<Void>> confirmDirectUpload(
             @PathVariable UUID uuidRequest,
-            @Valid @RequestBody ConfirmDirectUploadRequest request) {
-        return service.confirmDirectUpload(uuidRequest, request)
+            @Valid @RequestBody ConfirmDirectUploadRequest request,
+            @AuthenticationPrincipal Jwt jwt) {
+        return service.confirmDirectUpload(UUID.fromString(jwt.getSubject()), uuidRequest, request)
                 .thenReturn(ResponseEntity.status(HttpStatus.ACCEPTED).build());
     }
 }

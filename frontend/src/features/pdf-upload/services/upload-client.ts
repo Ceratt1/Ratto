@@ -10,18 +10,17 @@ import type {
 export async function uploadPdfs(
   files: File[],
   description: string,
+  token: string,
 ): Promise<UploadResult> {
   validateFiles(files);
 
-  const uuidUser = getOrCreateUserUuid();
   const prepared = await prepare({
-    uuidUser,
     description: description.trim() || undefined,
     files: files.map((file) => ({
       fileName: file.name,
       contentType: "application/pdf",
     })),
-  });
+  }, token);
 
   await Promise.all(
     prepared.files.map((preparedFile, index) =>
@@ -30,7 +29,6 @@ export async function uploadPdfs(
   );
 
   const confirmRequest: ConfirmDirectUploadRequest = {
-    uuidUser,
     description: description.trim() || undefined,
     files: prepared.files.map(({ fileUuid, fileName, s3Path }) => ({
       fileUuid,
@@ -39,15 +37,15 @@ export async function uploadPdfs(
     })),
   };
 
-  return confirm({ uuidRequest: prepared.uuidRequest, request: confirmRequest });
+  return confirm({ uuidRequest: prepared.uuidRequest, request: confirmRequest }, token);
 }
 
-async function prepare(request: DirectUploadRequest): Promise<PreparedUpload> {
-  return apiRequest<PreparedUpload>("/api/uploads/prepare", request);
+async function prepare(request: DirectUploadRequest, token: string): Promise<PreparedUpload> {
+  return apiRequest<PreparedUpload>("/api/uploads/prepare", request, token);
 }
 
-async function confirm(command: ConfirmUploadCommand): Promise<UploadResult> {
-  return apiRequest<UploadResult>("/api/uploads/confirm", command);
+async function confirm(command: ConfirmUploadCommand, token: string): Promise<UploadResult> {
+  return apiRequest<UploadResult>("/api/uploads/confirm", command, token);
 }
 
 async function uploadFileToS3(file: File, uploadUrl: string): Promise<void> {
@@ -61,10 +59,10 @@ async function uploadFileToS3(file: File, uploadUrl: string): Promise<void> {
   }
 }
 
-async function apiRequest<T extends object>(path: string, body: object): Promise<T> {
+async function apiRequest<T extends object>(path: string, body: object, token: string): Promise<T> {
   const response = await fetch(path, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
   const payload = (await response.json()) as T | ApiError;
@@ -72,17 +70,6 @@ async function apiRequest<T extends object>(path: string, body: object): Promise
     throw new Error("message" in payload ? payload.message : "Falha na integração.");
   }
   return payload as T;
-}
-
-function getOrCreateUserUuid(): string {
-  const storageKey = "learn-ia-user-uuid";
-  const existing = window.localStorage.getItem(storageKey);
-  if (existing) {
-    return existing;
-  }
-  const created = crypto.randomUUID();
-  window.localStorage.setItem(storageKey, created);
-  return created;
 }
 
 function validateFiles(files: File[]): void {

@@ -4,6 +4,30 @@ Este projeto implementa um fluxo assíncrono para ingestão de um ou vários PDF
 
 ![Arquitetura de alto nível](docs/v1.png)
 
+## Entrada única e segurança
+
+O `api-gateway` é a única entrada HTTP pública do ambiente e fica disponível em `http://localhost:3000`. Ele entrega a landing page e a área autenticada, publica o Keycloak na mesma origem e encaminha somente as APIs explicitamente permitidas.
+
+- `/` é público e explica o produto.
+- `/app` inicia autenticação pelo Keycloak.
+- `/api/uploads/**`, `/api/users/me` e `/api/v1/**` exigem JWT com audiência `gateway-api`.
+- `core-service` e `producer` validam novamente o token com suas próprias audiências.
+- O upload multipart legado do producer não é publicado; o navegador envia PDFs diretamente ao S3 por URL pré-assinada.
+- Cada requisição recebe `X-Correlation-Id`; falhas de upstream passam por circuit breaker e retornam `503` padronizado.
+
+Os endereços internos podem ser trocados por DNS de serviços ou load balancers através das variáveis `GATEWAY_ROUTES_*`, sem alterar as rotas públicas.
+
+### Login social com Google
+
+O Keycloak continua sendo o único issuer da aplicação e centraliza também os provedores sociais. Para ativar o Google:
+
+1. Crie um cliente OAuth 2.0 do tipo aplicação Web no Google Cloud Console.
+2. Cadastre `http://localhost:3000/realms/learn-ia/broker/google/endpoint` como URI de redirecionamento autorizada.
+3. Preencha `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` e `SSO_GOOGLE_ENABLED=true` no `.env`.
+4. Execute `docker compose up -d --force-recreate keycloak-config`.
+
+O job configura ou atualiza o provedor sem apagar usuários. Azure/Entra ID segue o mesmo padrão pelas variáveis `SSO_AZURE_ENABLED`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET` e `AZURE_TENANT_ID`.
+
 ## Visão geral
 
 De forma resumida:
@@ -77,7 +101,7 @@ Para evitar subir o Kafka manualmente, use o `docker-compose.yml` da raiz do pro
 docker compose up -d
 ```
 
-Interface web do Kafka:
+Interface web do Kafka, disponível apenas no host local:
 
 - URL: `http://localhost:8080`
 
@@ -98,7 +122,7 @@ docker compose down
 
 ## Frontend de upload
 
-O frontend Next.js fica disponível em `http://localhost:3000` e permite enviar até dois PDFs. Ele usa o producer para preparar e confirmar o processamento, enquanto o navegador envia os arquivos diretamente para URLs assinadas do S3.
+O gateway entrega o frontend Next.js em `http://localhost:3000`. A interface permite enviar até dois PDFs, usa o BFF para preparar e confirmar o processamento e envia os arquivos diretamente para URLs assinadas do S3.
 
 Antes de testar pelo navegador, configure o CORS do bucket para permitir `PUT` originado pelo frontend local:
 

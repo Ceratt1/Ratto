@@ -1,0 +1,36 @@
+spring:
+  application:
+    name: core-service
+  datasource:
+    url: jdbc:postgresql://localhost:5433/learn_ia_core
+    username: core
+    password: core
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:3000/realms/learn-ia
+          jwk-set-uri: http://localhost:8081/realms/learn-ia/protocol/openid-connect/certs
+
+security:
+  audience: core-service-api
+
+server:
+  port: 8071
+
+management:
+  server:
+    port: 9090
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: always

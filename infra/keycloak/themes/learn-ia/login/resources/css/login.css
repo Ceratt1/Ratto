@@ -1,0 +1,389 @@
+:root {
+  color-scheme: light;
+  --background: #f7f4ed;
+  --surface: #fffdf8;
+  --surface-soft: #f2efe8;
+  --surface-strong: #26313d;
+  --text: #202934;
+  --muted: #69737f;
+  --line: #ded9ce;
+  --accent: #5ba4ff;
+  --accent-dark: #1769e0;
+  --accent-soft: rgba(23, 105, 224, 0.1);
+  --danger: #c73636;
+  --shadow: 0 24px 80px rgba(46, 55, 66, 0.14);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+body#keycloak-bg {
+  min-height: 100%;
+}
+
+body#keycloak-bg {
+  margin: 0;
+  background:
+    radial-gradient(circle at 8% 0%, rgba(59, 130, 246, 0.17), transparent 30rem),
+    radial-gradient(circle at 100% 100%, rgba(91, 164, 255, 0.11), transparent 34rem),
+    var(--background) !important;
+  color: var(--text);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+a {
+  color: var(--accent-dark) !important;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+.pf-v5-c-login {
+  align-items: center;
+  display: grid;
+  min-height: 100vh;
+  padding: 32px;
+}
+
+.pf-v5-c-login__container {
+  display: grid !important;
+  grid-template-areas: "header main" !important;
+  grid-template-columns: minmax(320px, 0.9fr) minmax(420px, 0.72fr) !important;
+  width: min(1040px, 100%);
+  margin: auto;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 30px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  animation: enter 500ms ease-out both;
+}
+
+.pf-v5-c-login__header {
+  grid-area: header !important;
+  display: flex !important;
+  min-height: 650px;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 46px !important;
+  background:
+    radial-gradient(circle at 15% 0%, rgba(91, 164, 255, 0.38), transparent 24rem),
+    linear-gradient(145deg, #26313d 0%, #1f2935 58%, #17202a 100%);
+  color: #f7f5ef;
+}
+
+#kc-header-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  color: #ffffff !important;
+  font-size: 0 !important;
+  font-weight: 900;
+  letter-spacing: -0.04em;
+  text-transform: none;
+}
+
+#kc-header-wrapper::before {
+  width: 58px;
+  height: 58px;
+  flex: 0 0 auto;
+  border: 1px solid rgba(91, 164, 255, 0.45);
+  border-radius: 19px;
+  background: #26313d url("/logo-learn-ai.png") center / cover no-repeat;
+  box-shadow: 0 10px 30px rgba(23, 105, 224, 0.34);
+  content: "";
+}
+
+#kc-header-wrapper::after {
+  content: "Learn IA";
+  font-size: 1.45rem;
+}
+
+.pf-v5-c-login__header::after {
+  display: block;
+  max-width: 430px;
+  color: rgba(247, 245, 239, 0.76);
+  content: "Transforme seus materiais em prática ativa, encontre seus gaps e estude com direção.";
+  font-size: clamp(1.7rem, 3vw, 2.7rem);
+  font-weight: 850;
+  letter-spacing: -0.055em;
+  line-height: 1.04;
+}
+
+.pf-v5-c-login__main {
+  grid-area: main !important;
+  width: auto !important;
+  max-width: none !important;
+  min-height: 650px;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--surface) !important;
+  box-shadow: none !important;
+}
+
+.pf-v5-c-login__main-header {
+  padding: 54px 54px 12px !important;
+}
+
+.pf-v5-c-login__main-header::before {
+  display: inline-flex;
+  margin-bottom: 18px;
+  border: 1px solid rgba(23, 105, 224, 0.16);
+  border-radius: 999px;
+  padding: 7px 11px;
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+  content: "Sua área de estudos";
+  font-size: 0.69rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.pf-v5-c-login__main-body {
+  padding: 0 54px 32px !important;
+}
+
+.pf-v5-c-login__main-footer {
+  padding: 0 !important;
+}
+
+h1,
+.pf-v5-c-title {
+  margin: 0 !important;
+  color: var(--text) !important;
+  font-size: clamp(2rem, 4vw, 2.7rem) !important;
+  font-weight: 900 !important;
+  letter-spacing: -0.055em;
+  line-height: 1.02;
+}
+
+label,
+p,
+.instruction,
+.pf-v5-c-form__helper-text,
+.pf-v5-c-login__main-footer-band-item {
+  color: var(--muted) !important;
+}
+
+.pf-v5-c-form__group {
+  margin-top: 19px;
+}
+
+.pf-v5-c-form__label-text {
+  color: var(--text);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.pf-v5-c-form-control,
+.pf-v5-c-input-group {
+  overflow: hidden;
+  border: 1px solid var(--line) !important;
+  border-radius: 14px !important;
+  background: var(--surface-soft) !important;
+  box-shadow: none !important;
+}
+
+.pf-v5-c-input-group .pf-v5-c-form-control {
+  border: 0 !important;
+}
+
+input,
+.pf-v5-c-form-control input {
+  min-height: 50px;
+  border: 0 !important;
+  background: transparent !important;
+  color: var(--text) !important;
+  outline: 0;
+}
+
+.pf-v5-c-form-control:focus-within,
+.pf-v5-c-input-group:focus-within {
+  border-color: var(--accent-dark) !important;
+  box-shadow: 0 0 0 3px rgba(23, 105, 224, 0.16) !important;
+}
+
+.pf-v5-c-button {
+  border-radius: 13px !important;
+  font-weight: 850 !important;
+}
+
+.pf-v5-c-button.pf-m-control {
+  border: 0 !important;
+  background: transparent !important;
+  color: var(--muted) !important;
+}
+
+#kc-login,
+input[type="submit"],
+.pf-v5-c-button.pf-m-primary {
+  min-height: 52px;
+  border: 0 !important;
+  background: var(--accent-dark) !important;
+  color: #ffffff !important;
+  box-shadow: 0 10px 24px rgba(23, 105, 224, 0.2);
+  transition: transform 180ms ease, background 180ms ease, box-shadow 180ms ease;
+}
+
+#kc-login:hover,
+input[type="submit"]:hover,
+.pf-v5-c-button.pf-m-primary:hover {
+  transform: translateY(-2px);
+  background: #0e54ba !important;
+  box-shadow: 0 16px 32px rgba(23, 105, 224, 0.28);
+}
+
+#kc-social-providers {
+  margin-top: 28px;
+}
+
+#kc-social-providers h2,
+#kc-social-providers hr {
+  display: none;
+}
+
+#kc-social-providers::before {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+  color: var(--muted);
+  content: "ou continue com";
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: lowercase;
+}
+
+#kc-social-providers::after {
+  display: block;
+  height: 1px;
+  margin-top: -77px;
+  background: var(--line);
+  content: "";
+  opacity: 0;
+}
+
+.kc-social-links,
+#kc-social-providers ul {
+  display: grid !important;
+  gap: 10px;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.kc-social-item,
+#kc-social-providers a {
+  display: flex !important;
+  min-height: 50px;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border: 1px solid var(--line) !important;
+  border-radius: 13px !important;
+  background: var(--surface) !important;
+  color: var(--text) !important;
+  box-shadow: none !important;
+  font-weight: 800 !important;
+  transition: transform 180ms ease, border-color 180ms ease, background 180ms ease;
+}
+
+.kc-social-item:hover,
+#kc-social-providers a:hover {
+  transform: translateY(-2px);
+  border-color: rgba(23, 105, 224, 0.34) !important;
+  background: var(--accent-soft) !important;
+  text-decoration: none;
+}
+
+#kc-info {
+  margin: 26px -54px -32px !important;
+  border-top: 1px solid var(--line);
+  padding: 20px 54px !important;
+  background: var(--surface-soft) !important;
+}
+
+#kc-registration {
+  text-align: center;
+}
+
+.pf-v5-c-alert {
+  border-radius: 14px !important;
+}
+
+@keyframes enter {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 840px) {
+  .pf-v5-c-login {
+    padding: 16px;
+  }
+
+  .pf-v5-c-login__container {
+    grid-template-areas: "header" "main" !important;
+    grid-template-columns: 1fr !important;
+  }
+
+  .pf-v5-c-login__header {
+    min-height: auto;
+    padding: 24px !important;
+  }
+
+  .pf-v5-c-login__header::after {
+    display: none;
+  }
+
+  .pf-v5-c-login__main {
+    min-height: auto;
+  }
+
+  .pf-v5-c-login__main-header {
+    padding: 34px 28px 10px !important;
+  }
+
+  .pf-v5-c-login__main-body {
+    padding: 0 28px 28px !important;
+  }
+
+  #kc-info {
+    margin: 24px -28px -28px !important;
+    padding: 18px 28px !important;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --background: #171a1f;
+    --surface: #20242b;
+    --surface-soft: #292e36;
+    --surface-strong: #171c23;
+    --text: #f3f1eb;
+    --muted: #b5b4af;
+    --line: #3b414b;
+    --accent: #82baff;
+    --accent-dark: #5ba4ff;
+    --accent-soft: rgba(91, 164, 255, 0.12);
+    --shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
+  }
+
+  #kc-login,
+  input[type="submit"],
+  .pf-v5-c-button.pf-m-primary {
+    color: #101820 !important;
+  }
+}

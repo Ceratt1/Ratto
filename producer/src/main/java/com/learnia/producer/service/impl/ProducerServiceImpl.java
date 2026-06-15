@@ -59,13 +59,16 @@ public class ProducerServiceImpl implements IProducerService {
     }
 
     @Override
-    public Mono<PreparedUploadDto> prepareDirectUpload(UUID uuidRequest, DirectUploadRequest request) {
+    public Mono<PreparedUploadDto> prepareDirectUpload(
+            UUID uuidUser,
+            UUID uuidRequest,
+            DirectUploadRequest request) {
         validateUniqueFileNames(request);
 
         return Flux.fromIterable(request.files())
                 .flatMapSequential(fileRequest -> {
                     File file = File.toDomain(
-                            request.uuidUser().toString(),
+                            uuidUser.toString(),
                             uuidRequest.toString(),
                             fileRequest.fileName());
                     return s3StorageService.createPresignedUploadUrl(
@@ -79,13 +82,16 @@ public class ProducerServiceImpl implements IProducerService {
                                     fileRequest.resolvedContentType()));
                 })
                 .collectList()
-                .map(files -> new PreparedUploadDto(uuidRequest, request.uuidUser(), files));
+                .map(files -> new PreparedUploadDto(uuidRequest, uuidUser, files));
     }
 
     @Override
-    public Mono<User> confirmDirectUpload(UUID uuidRequest, ConfirmDirectUploadRequest request) {
-        validatePreparedFiles(uuidRequest, request);
-        User user = toUser(uuidRequest, request);
+    public Mono<User> confirmDirectUpload(
+            UUID uuidUser,
+            UUID uuidRequest,
+            ConfirmDirectUploadRequest request) {
+        validatePreparedFiles(uuidUser, uuidRequest, request);
+        User user = toUser(uuidUser, uuidRequest, request);
 
         return Flux.fromIterable(user.getFiles())
                 .flatMap(file -> s3StorageService.objectExists(file.getS3Path())
@@ -97,11 +103,11 @@ public class ProducerServiceImpl implements IProducerService {
                 .thenReturn(user);
     }
 
-    private User toUser(UUID uuidRequest, ConfirmDirectUploadRequest request) {
+    private User toUser(UUID uuidUser, UUID uuidRequest, ConfirmDirectUploadRequest request) {
         List<File> files = request.files().stream()
                 .map(file -> File.fromPreparedUpload(file.fileUuid(), file.fileName(), file.s3Path()))
                 .toList();
-        return User.toDomain(request.uuidUser(), uuidRequest, request.description(), files);
+        return User.toDomain(uuidUser, uuidRequest, request.description(), files);
     }
 
     private Mono<Void> publishFiles(User user) {
@@ -142,10 +148,13 @@ public class ProducerServiceImpl implements IProducerService {
         }
     }
 
-    private void validatePreparedFiles(UUID uuidRequest, ConfirmDirectUploadRequest request) {
+    private void validatePreparedFiles(
+            UUID uuidUser,
+            UUID uuidRequest,
+            ConfirmDirectUploadRequest request) {
         HashSet<UUID> fileUuids = new HashSet<>();
         for (ConfirmFileUploadRequest file : request.files()) {
-            String expectedPath = "requests/" + request.uuidUser() + "/" + uuidRequest + "/"
+            String expectedPath = "requests/" + uuidUser + "/" + uuidRequest + "/"
                     + file.fileUuid() + "/original.pdf";
             if (!expectedPath.equals(file.s3Path())) {
                 throw new IllegalArgumentException("Invalid S3 path for file: " + file.fileName());

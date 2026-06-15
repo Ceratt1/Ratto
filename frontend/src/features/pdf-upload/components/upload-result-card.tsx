@@ -10,18 +10,18 @@ export function UploadResultCard({ result }: UploadResultCardProps) {
       <div className="result-heading">
         <span className="status-dot" />
         <div>
-          <strong>Processamento iniciado</strong>
+          <strong>Sua sessão de estudo está sendo preparada</strong>
           <p>{result.message}</p>
         </div>
       </div>
 
       <dl className="trace-grid">
         <div>
-          <dt>Usuário</dt>
+          <dt>Estudante</dt>
           <dd>{result.uuidUser}</dd>
         </div>
         <div>
-          <dt>Requisição</dt>
+          <dt>Sessão de estudo</dt>
           <dd>{result.uuidRequest}</dd>
         </div>
       </dl>
