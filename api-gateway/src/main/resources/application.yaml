@@ -5,8 +5,8 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          issuer-uri: http://localhost:3000/realms/learn-ia
-          jwk-set-uri: http://localhost:8081/realms/learn-ia/protocol/openid-connect/certs
+          issuer-uri: http://localhost:3000/realms/ratto
+          jwk-set-uri: http://localhost:8081/realms/ratto/protocol/openid-connect/certs
   cloud:
     gateway:
       server:

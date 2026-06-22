@@ -80,7 +80,7 @@ export function UploadForm() {
             id="description"
             maxLength={200}
             onChange={(event) => setDescription(event.target.value)}
-            placeholder="Ex.: gerar questões para revisar os principais conceitos"
+            placeholder="Ex.: revisar os conceitos que mais caem na prova"
             rows={3}
             value={description}
           />
@@ -114,13 +114,13 @@ export function UploadForm() {
         {error && <p className="error-message">{error}</p>}
 
         <Button disabled={!authenticated || uploading || files.length === 0} type="submit">
-          {uploading ? "Preparando sua sessão de estudo..." : "Criar questões para estudar"}
+          {uploading ? "Preparando sua revisão..." : "Criar questões para praticar"}
         </Button>
       </form>
 
       <aside className="study-journey-panel">
         <span className="eyebrow">Sua jornada de aprendizagem</span>
-        <h2>Do material a uma revisão com foco</h2>
+        <h2>Do material a uma revisão mais leve</h2>
         <ol className="study-journey-list">
           <li>
             <span>1</span>
@@ -140,13 +140,13 @@ export function UploadForm() {
             <span>3</span>
             <div>
               <strong>Encontre pontos para revisar</strong>
-              <p>Use suas dúvidas e erros para direcionar as próximas sessões de estudo.</p>
+              <p>Use suas dúvidas e erros para encontrar lacunas e direcionar as próximas revisões.</p>
             </div>
           </li>
         </ol>
         <div className="user-id">
           <span>Sua identificação de estudante</span>
-          <code>{result?.uuidUser ?? profile?.id ?? "disponível após o login"}</code>
+          <code>{result?.uuidUser ?? profile?.id ?? "disponível após entrar no Ratto"}</code>
         </div>
       </aside>
 

@@ -71,9 +71,9 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
     return (
       <div className="auth-loading" role="status">
         <div className="auth-loading-mark">
-          <Image src="/logo-learn-ai.png" alt="Learn IA" width={72} height={72} priority />
+          <Image src="/logo-ratto.png" alt="Ratto" width={72} height={72} priority />
         </div>
-        <span>Preparando seu ambiente de estudos...</span>
+        <span>Preparando sua área Ratto...</span>
       </div>
     );
   }

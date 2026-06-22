@@ -1,4 +1,4 @@
-# Learn AI
+# Ratto
 ## Aprendendo com IA
 
 ## Participantes do Projeto
@@ -54,4 +54,4 @@ A condução do projeto será feita semanalmente, com foco em construir um MVP f
 | 17/07 | Apresentação Final | Apresentação final do projeto com demonstração do MVP e visão de evolução do produto para uso comercial. |
 
 ## Considerações Finais
-O projeto Learn AI busca unir inteligência artificial e aprendizado ativo para transformar conteúdos densos em experiências de estudo mais acessíveis, eficientes e escaláveis. Além de atender à proposta acadêmica da disciplina, ele também representa uma solução em que eu realmente acredito porque senti na prática como a IA pode melhorar a forma de estudar. Por isso, a proposta também foi pensada com potencial de continuidade após a entrega, abrindo espaço para validação de mercado e futura comercialização.
+O projeto Ratto busca unir inteligência artificial e aprendizado ativo para transformar conteúdos densos em experiências de estudo mais acessíveis, eficientes e escaláveis. Além de atender à proposta acadêmica da disciplina, ele também representa uma solução em que eu realmente acredito porque senti na prática como a IA pode melhorar a forma de estudar. Por isso, a proposta também foi pensada com potencial de continuidade após a entrega, abrindo espaço para validação de mercado e futura comercialização.

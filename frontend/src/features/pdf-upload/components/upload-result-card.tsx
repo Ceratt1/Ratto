@@ -30,7 +30,7 @@ export function UploadResultCard({ result }: UploadResultCardProps) {
         {result.files.map((file) => (
           <div key={file.fileUuid}>
             <strong>{file.fileName}</strong>
-            <code>{file.s3Path}</code>
+            <span>Material incluído na sessão de estudo</span>
           </div>
         ))}
       </div>

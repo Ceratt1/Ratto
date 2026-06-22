@@ -22,7 +22,7 @@ Os endereços internos podem ser trocados por DNS de serviços ou load balancers
 O Keycloak continua sendo o único issuer da aplicação e centraliza também os provedores sociais. Para ativar o Google:
 
 1. Crie um cliente OAuth 2.0 do tipo aplicação Web no Google Cloud Console.
-2. Cadastre `http://localhost:3000/realms/learn-ia/broker/google/endpoint` como URI de redirecionamento autorizada.
+2. Cadastre `http://localhost:3000/realms/ratto/broker/google/endpoint` como URI de redirecionamento autorizada.
 3. Preencha `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` e `SSO_GOOGLE_ENABLED=true` no `.env`.
 4. Execute `docker compose up -d --force-recreate keycloak-config`.
 
@@ -108,7 +108,7 @@ Interface web do Kafka, disponível apenas no host local:
 O PostgreSQL do ledger fica disponível em `localhost:5432` e o Actuator do serviço em `http://localhost:9073/actuator/health`. Consulte a linha do tempo de uma requisição com:
 
 ```bash
-docker exec postgres-ledger psql -U ledger -d learn_ia_ledger \
+docker exec postgres-ledger psql -U ledger -d ratto_ledger \
   -c "SELECT event_type, source_service, recorded_at FROM event_ledger WHERE uuid_request = '<UUID>' ORDER BY recorded_at;"
 ```
 

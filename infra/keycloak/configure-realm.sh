@@ -12,18 +12,18 @@ until "$KCADM" config credentials \
   sleep 3
 done
 
-client_id=$("$KCADM" get clients -r learn-ia -q clientId=learn-ia-frontend --fields id --format csv --noquotes)
-"$KCADM" update realms/learn-ia \
-  -s loginTheme=learn-ia \
+client_id=$("$KCADM" get clients -r ratto -q clientId=ratto-frontend --fields id --format csv --noquotes)
+"$KCADM" update realms/ratto \
+  -s loginTheme=ratto \
   -s internationalizationEnabled=true \
   -s defaultLocale=pt-BR \
   -s 'supportedLocales=["pt-BR","en"]'
 
-"$KCADM" update "clients/$client_id" -r learn-ia \
+"$KCADM" update "clients/$client_id" -r ratto \
   -s 'redirectUris=["http://localhost:3000/*"]' \
   -s 'webOrigins=["http://localhost:3000"]'
 
-mapper_id=$("$KCADM" get "clients/$client_id/protocol-mappers/models" -r learn-ia \
+mapper_id=$("$KCADM" get "clients/$client_id/protocol-mappers/models" -r ratto \
   --fields id,name --format csv --noquotes |
   while IFS=, read -r id name; do
     if [ "$name" = "gateway-api audience" ]; then
@@ -33,7 +33,7 @@ mapper_id=$("$KCADM" get "clients/$client_id/protocol-mappers/models" -r learn-i
   done)
 
 if [ -z "$mapper_id" ]; then
-  "$KCADM" create "clients/$client_id/protocol-mappers/models" -r learn-ia \
+  "$KCADM" create "clients/$client_id/protocol-mappers/models" -r ratto \
     -s name='gateway-api audience' \
     -s protocol=openid-connect \
     -s protocolMapper=oidc-audience-mapper \
@@ -44,13 +44,13 @@ fi
 
 provider_exists() {
   alias=$1
-  "$KCADM" get "identity-provider/instances/$alias" -r learn-ia >/dev/null 2>&1
+  "$KCADM" get "identity-provider/instances/$alias" -r ratto >/dev/null 2>&1
 }
 
 configure_google() {
   if [ "${SSO_GOOGLE_ENABLED:-false}" != "true" ]; then
     if provider_exists google; then
-      "$KCADM" update identity-provider/instances/google -r learn-ia -s enabled=false
+      "$KCADM" update identity-provider/instances/google -r ratto -s enabled=false
     fi
     return
   fi
@@ -68,7 +68,7 @@ configure_google() {
     resource=identity-provider/instances
   fi
 
-  "$KCADM" "$action" "$resource" -r learn-ia \
+  "$KCADM" "$action" "$resource" -r ratto \
     -s alias=google \
     -s displayName='Continuar com Google' \
     -s providerId=google \
@@ -88,7 +88,7 @@ configure_google() {
 configure_azure() {
   if [ "${SSO_AZURE_ENABLED:-false}" != "true" ]; then
     if provider_exists azure; then
-      "$KCADM" update identity-provider/instances/azure -r learn-ia -s enabled=false
+      "$KCADM" update identity-provider/instances/azure -r ratto -s enabled=false
     fi
     return
   fi
@@ -107,7 +107,7 @@ configure_azure() {
     resource=identity-provider/instances
   fi
 
-  "$KCADM" "$action" "$resource" -r learn-ia \
+  "$KCADM" "$action" "$resource" -r ratto \
     -s alias=azure \
     -s displayName='Continuar com Microsoft' \
     -s providerId=oidc \

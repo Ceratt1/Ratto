@@ -2,7 +2,7 @@ spring:
   application:
     name: event-ledger
   datasource:
-    url: jdbc:postgresql://localhost:5432/learn_ia_ledger
+    url: jdbc:postgresql://localhost:5432/ratto_ledger
     username: ledger
     password: ledger
 

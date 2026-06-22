@@ -1,5 +1,5 @@
 {
-  "realm": "learn-ia",
+  "realm": "ratto",
   "enabled": true,
   "registrationAllowed": true,
   "registrationEmailAsUsername": true,
@@ -9,7 +9,7 @@
   "internationalizationEnabled": true,
   "defaultLocale": "pt-BR",
   "supportedLocales": ["pt-BR", "en"],
-  "loginTheme": "learn-ia",
+  "loginTheme": "ratto",
   "requiredActions": [
     {
       "alias": "VERIFY_PROFILE",
@@ -24,8 +24,8 @@
   "passwordPolicy": "hashAlgorithm(argon2)",
   "clients": [
     {
-      "clientId": "learn-ia-frontend",
-      "name": "Learn IA Frontend",
+      "clientId": "ratto-frontend",
+      "name": "Ratto Frontend",
       "enabled": true,
       "publicClient": true,
       "standardFlowEnabled": true,

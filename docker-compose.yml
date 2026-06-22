@@ -3,7 +3,7 @@ services:
     build:
       context: .
       dockerfile: api-gateway/Dockerfile
-    image: learn-ia-api-gateway:local
+    image: ratto-api-gateway:local
     depends_on:
       frontend:
         condition: service_healthy
@@ -23,8 +23,8 @@ services:
       GATEWAY_ROUTES_KEYCLOAK_URL: ${GATEWAY_ROUTES_KEYCLOAK_URL:-http://keycloak:8080}
       GATEWAY_ROUTES_CORE_URL: ${GATEWAY_ROUTES_CORE_URL:-http://core-service:8071}
       GATEWAY_ROUTES_PRODUCER_URL: ${GATEWAY_ROUTES_PRODUCER_URL:-http://producer:8070}
-      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: ${GATEWAY_PUBLIC_URL:-http://localhost:3000}/realms/learn-ia
-      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: http://keycloak:8080/realms/learn-ia/protocol/openid-connect/certs
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: ${GATEWAY_PUBLIC_URL:-http://localhost:3000}/realms/ratto
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: http://keycloak:8080/realms/ratto/protocol/openid-connect/certs
       SECURITY_AUDIENCE: gateway-api
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:9090/actuator/health/readiness >/dev/null 2>&1"]
@@ -38,7 +38,7 @@ services:
     build:
       context: .
       dockerfile: frontend/Dockerfile
-    image: learn-ia-frontend:local
+    image: ratto-frontend:local
     depends_on:
       producer:
         condition: service_healthy
@@ -52,8 +52,8 @@ services:
       PRODUCER_BASE_URL: http://producer:8070/api
       CORE_SERVICE_BASE_URL: http://core-service:8071
       KEYCLOAK_PUBLIC_URL: ${KEYCLOAK_PUBLIC_URL:-http://localhost:3000}
-      KEYCLOAK_REALM: ${KEYCLOAK_REALM:-learn-ia}
-      KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID:-learn-ia-frontend}
+      KEYCLOAK_REALM: ${KEYCLOAK_REALM:-ratto}
+      KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID:-ratto-frontend}
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000 >/dev/null 2>&1"]
       interval: 15s
@@ -94,7 +94,7 @@ services:
     build:
       context: .
       dockerfile: producer/Dockerfile
-    image: learn-ia-producer:local
+    image: ratto-producer:local
     depends_on:
       kafka:
         condition: service_healthy
@@ -119,8 +119,8 @@ services:
       AWS_S3_SECRET_KEY: ${AWS_S3_SECRET_KEY}
       AWS_S3_PATH_STYLE_ACCESS_ENABLED: ${AWS_S3_PATH_STYLE_ACCESS_ENABLED:-false}
       AWS_S3_PRESIGNED_URL_DURATION_MINUTES: ${AWS_S3_PRESIGNED_URL_DURATION_MINUTES:-15}
-      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: ${GATEWAY_PUBLIC_URL:-http://localhost:3000}/realms/learn-ia
-      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: http://keycloak:8080/realms/learn-ia/protocol/openid-connect/certs
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: ${GATEWAY_PUBLIC_URL:-http://localhost:3000}/realms/ratto
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: http://keycloak:8080/realms/ratto/protocol/openid-connect/certs
       SECURITY_AUDIENCE: producer-api
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:9090/actuator/health/readiness >/dev/null 2>&1"]
@@ -134,7 +134,7 @@ services:
     build:
       context: .
       dockerfile: pdf-extractor/Dockerfile
-    image: learn-ia-pdf-extractor:local
+    image: ratto-pdf-extractor:local
     depends_on:
       kafka:
         condition: service_healthy
@@ -164,7 +164,7 @@ services:
     build:
       context: .
       dockerfile: question-generator/Dockerfile
-    image: learn-ia-question-generator:local
+    image: ratto-question-generator:local
     depends_on:
       kafka:
         condition: service_healthy
@@ -200,7 +200,7 @@ services:
     ports:
       - "127.0.0.1:5432:5432"
     environment:
-      POSTGRES_DB: ${LEDGER_POSTGRES_DB:-learn_ia_ledger}
+      POSTGRES_DB: ${LEDGER_POSTGRES_DB:-ratto_ledger}
       POSTGRES_USER: ${LEDGER_POSTGRES_USER:-ledger}
       POSTGRES_PASSWORD: ${LEDGER_POSTGRES_PASSWORD:-ledger}
     volumes:
@@ -209,7 +209,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          "pg_isready -U ${LEDGER_POSTGRES_USER:-ledger} -d ${LEDGER_POSTGRES_DB:-learn_ia_ledger}",
+          "pg_isready -U ${LEDGER_POSTGRES_USER:-ledger} -d ${LEDGER_POSTGRES_DB:-ratto_ledger}",
         ]
       interval: 10s
       timeout: 5s
@@ -249,12 +249,12 @@ services:
       KC_DB_PASSWORD: ${KEYCLOAK_POSTGRES_PASSWORD:-keycloak}
       KC_HOSTNAME: ${GATEWAY_PUBLIC_URL:-http://localhost:3000}
       KC_PROXY_HEADERS: xforwarded
-      KC_SPI_THEME_DEFAULT: learn-ia
+      KC_SPI_THEME_DEFAULT: ratto
       KC_SPI_THEME_CACHE_THEMES: "false"
       KC_SPI_THEME_CACHE_TEMPLATES: "false"
     volumes:
-      - ./infra/keycloak/learn-ia-realm.json:/opt/keycloak/data/import/learn-ia-realm.json:ro
-      - ./infra/keycloak/themes/learn-ia:/opt/keycloak/themes/learn-ia:ro
+      - ./infra/keycloak/ratto-realm.json:/opt/keycloak/data/import/ratto-realm.json:ro
+      - ./infra/keycloak/themes/ratto:/opt/keycloak/themes/ratto:ro
     healthcheck:
       test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000; echo -e 'GET /health/ready HTTP/1.1\\r\\nhost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3; cat <&3 | grep -q '200 OK'"]
       interval: 15s
@@ -288,13 +288,13 @@ services:
     ports:
       - "127.0.0.1:5433:5432"
     environment:
-      POSTGRES_DB: ${CORE_POSTGRES_DB:-learn_ia_core}
+      POSTGRES_DB: ${CORE_POSTGRES_DB:-ratto_core}
       POSTGRES_USER: ${CORE_POSTGRES_USER:-core}
       POSTGRES_PASSWORD: ${CORE_POSTGRES_PASSWORD:-core}
     volumes:
       - core-postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${CORE_POSTGRES_USER:-core} -d ${CORE_POSTGRES_DB:-learn_ia_core}"]
+      test: ["CMD-SHELL", "pg_isready -U ${CORE_POSTGRES_USER:-core} -d ${CORE_POSTGRES_DB:-ratto_core}"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -304,7 +304,7 @@ services:
     build:
       context: .
       dockerfile: core-service/Dockerfile
-    image: learn-ia-core-service:local
+    image: ratto-core-service:local
     depends_on:
       postgres-core:
         condition: service_healthy
@@ -317,11 +317,11 @@ services:
     environment:
       SERVER_PORT: 8071
       MANAGEMENT_SERVER_PORT: 9090
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-core:5432/${CORE_POSTGRES_DB:-learn_ia_core}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-core:5432/${CORE_POSTGRES_DB:-ratto_core}
       SPRING_DATASOURCE_USERNAME: ${CORE_POSTGRES_USER:-core}
       SPRING_DATASOURCE_PASSWORD: ${CORE_POSTGRES_PASSWORD:-core}
-      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: ${GATEWAY_PUBLIC_URL:-http://localhost:3000}/realms/learn-ia
-      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: http://keycloak:8080/realms/learn-ia/protocol/openid-connect/certs
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: ${GATEWAY_PUBLIC_URL:-http://localhost:3000}/realms/ratto
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: http://keycloak:8080/realms/ratto/protocol/openid-connect/certs
       SECURITY_AUDIENCE: core-service-api
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:9090/actuator/health/readiness >/dev/null 2>&1"]
@@ -335,7 +335,7 @@ services:
     build:
       context: .
       dockerfile: event-ledger/Dockerfile
-    image: learn-ia-event-ledger:local
+    image: ratto-event-ledger:local
     depends_on:
       kafka:
         condition: service_healthy
@@ -350,7 +350,7 @@ services:
       MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS: always
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-ledger:5432/${LEDGER_POSTGRES_DB:-learn_ia_ledger}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-ledger:5432/${LEDGER_POSTGRES_DB:-ratto_ledger}
       SPRING_DATASOURCE_USERNAME: ${LEDGER_POSTGRES_USER:-ledger}
       SPRING_DATASOURCE_PASSWORD: ${LEDGER_POSTGRES_PASSWORD:-ledger}
     healthcheck:
