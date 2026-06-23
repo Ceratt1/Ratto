@@ -1,5 +1,5 @@
-import { UploadForm } from "@/features/pdf-upload/components/upload-form";
+import { StudyWorkspace } from "@/features/study-app/components/study-workspace";
 
 export default function StudyAppPage() {
-  return <UploadForm />;
+  return <StudyWorkspace />;
 }

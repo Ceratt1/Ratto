@@ -1,6 +1,7 @@
 export interface DirectUploadFileRequest {
   fileName: string;
   contentType: "application/pdf";
+  sizeBytes: number;
 }
 
 export interface DirectUploadRequest {

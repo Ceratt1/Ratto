@@ -16,14 +16,10 @@ export function AppShell({ children }: Readonly<AppShellProps>) {
           <Image className="brand-logo" src="/logo-ratto.png" alt="" width={56} height={56} priority />
           <span>Ratto</span>
         </Link>
-        <div className="hero-copy">
-          <span className="eyebrow">Minha área de estudos</span>
-          <h1>Prepare sua próxima revisão.</h1>
-          <p>
-            Envie seus materiais para criar questões de prática e revisar com foco no que ainda
-            precisa evoluir.
-          </p>
-        </div>
+        <nav className="app-shell-nav" aria-label="Navegação da área de estudos">
+          <a href="#areas">Áreas de estudo</a>
+          <a href="#atividade">Atividade</a>
+        </nav>
         <AuthActions />
       </header>
       <section className="app-shell-content" aria-label="Área de estudos">

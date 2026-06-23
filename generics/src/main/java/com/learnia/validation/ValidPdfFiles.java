@@ -22,5 +22,7 @@ public @interface ValidPdfFiles {
 
     Class<? extends Payload>[] payload() default {};
 
-    long maxSizeMb() default 100;
+    long maxSizeMb() default 30;
+
+    int maxFiles() default 1;
 }

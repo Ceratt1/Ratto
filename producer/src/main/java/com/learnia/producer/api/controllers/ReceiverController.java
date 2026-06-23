@@ -45,7 +45,7 @@ public class ReceiverController {
     public Mono<String> receive(
             @PathVariable(value = "uuidRequest", required = true) String uuidRequest,
             @RequestPart(value = "description", required = false) @Length(max = 200) String description,
-            @ValidPdfFiles(maxSizeMb = 100) @RequestPart("files") List<FilePart> files,
+            @ValidPdfFiles(maxSizeMb = 30, maxFiles = 1) @RequestPart("files") List<FilePart> files,
             @AuthenticationPrincipal Jwt jwt) {
 
         UUID uuidUser = UUID.fromString(jwt.getSubject());

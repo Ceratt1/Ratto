@@ -15,16 +15,21 @@ import jakarta.validation.ConstraintValidatorContext;
 @Component
 public class PdfFilesValidator implements ConstraintValidator<ValidPdfFiles, List<FilePart>> {
     private long maxSizeBytes;
+    private int maxFiles;
 
     @Override
     public void initialize(ValidPdfFiles constraintAnnotation) {
         this.maxSizeBytes = constraintAnnotation.maxSizeMb() * 1024L * 1024L;
+        this.maxFiles = constraintAnnotation.maxFiles();
     }
 
     @Override
     public boolean isValid(List<FilePart> files, ConstraintValidatorContext context) {
         if (files == null || files.isEmpty()) {
             return violation(context, "At least one PDF is required");
+        }
+        if (files.size() > maxFiles) {
+            return violation(context, "Send at most " + maxFiles + " PDF");
         }
 
         for (FilePart file : files) {

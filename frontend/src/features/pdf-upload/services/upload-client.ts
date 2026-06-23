@@ -7,6 +7,9 @@ import type {
   UploadResult,
 } from "@/features/pdf-upload/models/upload.models";
 
+const MAX_PDF_FILES = 1;
+const MAX_PDF_SIZE_BYTES = 30 * 1024 * 1024;
+
 export async function uploadPdfs(
   files: File[],
   description: string,
@@ -19,6 +22,7 @@ export async function uploadPdfs(
     files: files.map((file) => ({
       fileName: file.name,
       contentType: "application/pdf",
+      sizeBytes: file.size,
     })),
   }, token);
 
@@ -73,15 +77,15 @@ async function apiRequest<T extends object>(path: string, body: object, token: s
 }
 
 function validateFiles(files: File[]): void {
-  if (files.length < 1 || files.length > 2) {
-    throw new Error("Selecione um ou dois arquivos PDF.");
+  if (files.length !== MAX_PDF_FILES) {
+    throw new Error("Selecione exatamente um arquivo PDF.");
   }
   for (const file of files) {
     if (file.type !== "application/pdf" || !file.name.toLowerCase().endsWith(".pdf")) {
       throw new Error(`${file.name} não é um PDF válido.`);
     }
-    if (file.size > 100 * 1024 * 1024) {
-      throw new Error(`${file.name} excede o limite de 100 MB.`);
+    if (file.size > MAX_PDF_SIZE_BYTES) {
+      throw new Error(`${file.name} excede o limite de 30 MB.`);
     }
   }
 }

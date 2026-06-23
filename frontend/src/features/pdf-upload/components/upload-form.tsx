@@ -11,7 +11,8 @@ import type {
 } from "@/features/pdf-upload/models/upload.models";
 import { uploadPdfs } from "@/features/pdf-upload/services/upload-client";
 
-const MAX_FILES = 2;
+const MAX_FILES = 1;
+const MAX_FILE_SIZE_BYTES = 30 * 1024 * 1024;
 
 export function UploadForm() {
   const { authenticated, getToken, initialized, profile } = useAuth();
@@ -29,7 +30,13 @@ export function UploadForm() {
 
     if (selected.length > MAX_FILES) {
       setFiles(selected.slice(0, MAX_FILES));
-      setError("Somente os dois primeiros PDFs foram selecionados.");
+      setError("Envie apenas um PDF por vez.");
+      return;
+    }
+    const oversizedFile = selected.find((file) => file.size > MAX_FILE_SIZE_BYTES);
+    if (oversizedFile) {
+      setFiles([]);
+      setError(`${oversizedFile.name} excede o limite de 30 MB.`);
       return;
     }
     setFiles(selected);
@@ -48,8 +55,8 @@ export function UploadForm() {
     setError("");
     setResult(null);
 
-    if (files.length < 1 || files.length > MAX_FILES) {
-      setError("Selecione um ou dois arquivos PDF.");
+    if (files.length !== MAX_FILES) {
+      setError("Selecione exatamente um arquivo PDF.");
       return;
     }
 
@@ -90,18 +97,17 @@ export function UploadForm() {
         <div className="field">
           <div className="field-title">
             <label htmlFor="files">Arquivos PDF</label>
-            <span>{files.length}/2 selecionados</span>
+            <span>{files.length}/1 selecionado</span>
           </div>
           <label className={`drop-zone ${uploading || !authenticated ? "disabled" : ""}`} htmlFor="files">
-            <strong>Escolha um ou dois PDFs</strong>
-            <span>Até 100 MB por arquivo</span>
+            <strong>Escolha um PDF</strong>
+            <span>Até 30 MB</span>
           </label>
           <input
             accept="application/pdf,.pdf"
             className="sr-only"
             disabled={uploading || !authenticated}
             id="files"
-            multiple
             onChange={handleFiles}
             ref={inputRef}
             type="file"
