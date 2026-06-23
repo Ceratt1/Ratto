@@ -137,25 +137,25 @@ A arquitetura do Ratto será composta por um frontend web, um backend principal 
 Os artefatos previstos para o projeto são:
 
 1. **Diagrama de arquitetura do projeto**
-   Representa a comunicação entre frontend, backend, microserviços, Kafka, PostgreSQL, Amazon S3, Keycloak e IA.
+   Ainda em construção.
 
 2. **Diagrama de fluxo assíncrono com Kafka**
-   Demonstra o caminho percorrido desde o upload do PDF até a geração e persistência das questões.
+   Ainda em construção.
 
-3. **Backlog / Histórias de usuário**
-   Lista as principais funcionalidades da plataforma a partir da visão do usuário.
+3. **Histórias de usuário**
+   Ainda em construção.
 
-4. **Protótipos de tela**
-   Representam telas como login, upload de PDF, simulado, resultado e dashboard básico.
+4. **JSON schema**
+   Ainda em construção.
 
-5. **Benchmarking com ferramentas semelhantes**
-   Compara o Ratto com ferramentas como ChatGPT, Gemini, Quizlet, Knowt ou plataformas semelhantes, destacando o diferencial de acompanhamento de progresso, identificação de gaps e geração de recomendações personalizadas.
+5. **Plano de Negócios**
+   Ainda em construção.
 
 ---
 
 ## Validação
 
-A validação do Ratto será realizada com aproximadamente 5 a 10 estudantes que utilizam PDFs, apostilas ou materiais digitais como parte de sua rotina de estudos. O objetivo será verificar se a plataforma ajuda o usuário a estudar de forma mais ativa, identificar dificuldades e compreender melhor quais conteúdos precisam ser reforçados.
+A validação do Ratto será realizada com aproximadamente 1 a 5 estudantes que utilizam PDFs, apostilas ou materiais digitais como parte de sua rotina de estudos. O objetivo será verificar se a plataforma ajuda o usuário a estudar de forma mais ativa, identificar dificuldades e compreender melhor quais conteúdos precisam ser reforçados.
 
 No MVP, não haverá uma funcionalidade interna para feedback dos usuários dentro da plataforma. A coleta será realizada externamente, por meio de questionários ou entrevistas simples durante a etapa de validação.
 
