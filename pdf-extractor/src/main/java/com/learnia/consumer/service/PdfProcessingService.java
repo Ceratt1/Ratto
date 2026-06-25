@@ -60,9 +60,12 @@ public class PdfProcessingService {
                 event.uuidUser(),
                 event.uuidRequest(),
                 event.fileUuid(),
+                event.workspaceId(),
                 event.originalFileName(),
                 event.pdfS3Path(),
                 event.extractedTextS3Path(),
+                event.description(),
+                event.studyLanguage(),
                 extractedTextBytes);
     }
 

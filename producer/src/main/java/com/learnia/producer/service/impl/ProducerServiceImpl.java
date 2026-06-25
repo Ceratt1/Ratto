@@ -19,6 +19,7 @@ import com.learnia.events.EventMetadata;
 import com.learnia.events.EventTopics;
 import com.learnia.events.EventTypes;
 import com.learnia.events.PdfProcessingEvent;
+import com.learnia.events.StudyLanguage;
 import com.learnia.producer.models.dto.ConfirmDirectUploadRequest;
 import com.learnia.producer.models.dto.ConfirmFileUploadRequest;
 import com.learnia.producer.models.dto.DirectUploadFileRequest;
@@ -64,6 +65,7 @@ public class ProducerServiceImpl implements IProducerService {
             UUID uuidRequest,
             DirectUploadRequest request) {
         validateUniqueFileNames(request);
+        validateStudyLanguage(request.studyLanguage());
 
         return Flux.fromIterable(request.files())
                 .flatMapSequential(fileRequest -> {
@@ -91,6 +93,7 @@ public class ProducerServiceImpl implements IProducerService {
             UUID uuidRequest,
             ConfirmDirectUploadRequest request) {
         validatePreparedFiles(uuidUser, uuidRequest, request);
+        validateStudyLanguage(request.studyLanguage());
         User user = toUser(uuidUser, uuidRequest, request);
 
         return Flux.fromIterable(user.getFiles())
@@ -107,7 +110,13 @@ public class ProducerServiceImpl implements IProducerService {
         List<File> files = request.files().stream()
                 .map(file -> File.fromPreparedUpload(file.fileUuid(), file.fileName(), file.s3Path()))
                 .toList();
-        return User.toDomain(uuidUser, uuidRequest, request.description(), files);
+        return User.toDomain(
+                uuidUser,
+                uuidRequest,
+                request.workspaceId(),
+                request.description(),
+                request.studyLanguage(),
+                files);
     }
 
     private Mono<Void> publishFiles(User user) {
@@ -132,11 +141,19 @@ public class ProducerServiceImpl implements IProducerService {
                 user.getUuid(),
                 user.getUuidRequest(),
                 file.getUuid(),
+                user.getWorkspaceId(),
                 file.getFileName(),
                 file.getS3Path(),
                 file.getExtractedTextS3Path(),
                 user.getDescription(),
+                user.getStudyLanguage(),
                 user.getCreatedAt() != null ? user.getCreatedAt().toString() : null);
+    }
+
+    private void validateStudyLanguage(String studyLanguage) {
+        if (!StudyLanguage.isSupported(studyLanguage)) {
+            throw new IllegalArgumentException("studyLanguage must be one of en, pt-BR, es");
+        }
     }
 
     private void validateUniqueFileNames(DirectUploadRequest request) {

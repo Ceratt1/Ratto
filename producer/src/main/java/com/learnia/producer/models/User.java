@@ -15,15 +15,25 @@ import lombok.ToString;
 @ToString
 public class User extends BaseEntity {
     private UUID uuidRequest;
+    private UUID workspaceId;
     private String description;
+    private String studyLanguage;
     private List<File> files;
 
 
-    public static User toDomain(UUID uuidUser, UUID uuidRequest ,String description, List<File> files) {
+    public static User toDomain(
+            UUID uuidUser,
+            UUID uuidRequest,
+            UUID workspaceId,
+            String description,
+            String studyLanguage,
+            List<File> files) {
         User user = new User();
         user.setUuid(uuidUser);
         user.setUuidRequest(uuidRequest);
+        user.setWorkspaceId(workspaceId);
         user.setDescription(description);
+        user.setStudyLanguage(studyLanguage);
         user.setFiles(files);
         user.setCreatedAt(OffsetDateTime.now());
 

@@ -44,6 +44,8 @@ services:
         condition: service_healthy
       core-service:
         condition: service_healthy
+      event-ledger:
+        condition: service_healthy
       keycloak:
         condition: service_healthy
     expose:
@@ -51,6 +53,7 @@ services:
     environment:
       PRODUCER_BASE_URL: http://producer:8070/api
       CORE_SERVICE_BASE_URL: http://core-service:8071
+      EVENT_LEDGER_BASE_URL: http://event-ledger:9090
       KEYCLOAK_PUBLIC_URL: ${KEYCLOAK_PUBLIC_URL:-http://localhost:3000}
       KEYCLOAK_REALM: ${KEYCLOAK_REALM:-ratto}
       KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID:-ratto-frontend}
@@ -195,27 +198,27 @@ services:
       start_period: 30s
     restart: unless-stopped
 
-  # postgres-ledger:
-  #   image: postgres:17-alpine
-  #   ports:
-  #     - "127.0.0.1:5432:5432"
-  #   environment:
-  #     POSTGRES_DB: ${LEDGER_POSTGRES_DB:-ratto_ledger}
-  #     POSTGRES_USER: ${LEDGER_POSTGRES_USER:-ledger}
-  #     POSTGRES_PASSWORD: ${LEDGER_POSTGRES_PASSWORD:-ledger}
-  #   volumes:
-  #     - ledger-postgres-data:/var/lib/postgresql/data
-  #   healthcheck:
-  #     test:
-  #       [
-  #         "CMD-SHELL",
-  #         "pg_isready -U ${LEDGER_POSTGRES_USER:-ledger} -d ${LEDGER_POSTGRES_DB:-ratto_ledger}",
-  #       ]
-  #     interval: 10s
-  #     timeout: 5s
-  #     retries: 10
-  #     start_period: 20s
-  #   restart: unless-stopped
+  postgres-ledger:
+    image: postgres:17-alpine
+    ports:
+      - "127.0.0.1:5432:5432"
+    environment:
+      POSTGRES_DB: ${LEDGER_POSTGRES_DB:-ratto_ledger}
+      POSTGRES_USER: ${LEDGER_POSTGRES_USER:-ledger}
+      POSTGRES_PASSWORD: ${LEDGER_POSTGRES_PASSWORD:-ledger}
+    volumes:
+      - ledger-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${LEDGER_POSTGRES_USER:-ledger} -d ${LEDGER_POSTGRES_DB:-ratto_ledger}",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    restart: unless-stopped
 
   postgres-keycloak:
     image: postgres:17-alpine
@@ -272,6 +275,7 @@ services:
     environment:
       KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
       KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      DEFAULT_USER_PASSWORD: ${DEFAULT_USER_PASSWORD:-Ratto@2026}
       SSO_GOOGLE_ENABLED: ${SSO_GOOGLE_ENABLED:-false}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
@@ -308,6 +312,8 @@ services:
     depends_on:
       postgres-core:
         condition: service_healthy
+      kafka:
+        condition: service_healthy
       keycloak:
         condition: service_healthy
     expose:
@@ -320,6 +326,13 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-core:5432/${CORE_POSTGRES_DB:-ratto_core}
       SPRING_DATASOURCE_USERNAME: ${CORE_POSTGRES_USER:-core}
       SPRING_DATASOURCE_PASSWORD: ${CORE_POSTGRES_PASSWORD:-core}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      AWS_S3_BUCKET: ${AWS_S3_BUCKET}
+      AWS_S3_REGION: ${AWS_S3_REGION:-us-east-1}
+      AWS_S3_ACCESS_KEY: ${AWS_S3_ACCESS_KEY}
+      AWS_S3_SECRET_KEY: ${AWS_S3_SECRET_KEY}
+      AWS_S3_PATH_STYLE_ACCESS_ENABLED: ${AWS_S3_PATH_STYLE_ACCESS_ENABLED:-false}
       SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: ${GATEWAY_PUBLIC_URL:-http://localhost:3000}/realms/ratto
       SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: http://keycloak:8080/realms/ratto/protocol/openid-connect/certs
       SECURITY_AUDIENCE: core-service-api
@@ -331,35 +344,35 @@ services:
       start_period: 45s
     restart: unless-stopped
 
-  # event-ledger:
-  #   build:
-  #     context: .
-  #     dockerfile: event-ledger/Dockerfile
-  #   image: ratto-event-ledger:local
-  #   depends_on:
-  #     kafka:
-  #       condition: service_healthy
-  #     postgres-ledger:
-  #       condition: service_healthy
-  #   ports:
-  #     - "127.0.0.1:9073:9090"
-  #   environment:
-  #     SERVER_PORT: 9090
-  #     MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health,info,metrics,prometheus
-  #     MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED: "true"
-  #     MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS: always
-  #     KAFKA_BOOTSTRAP_SERVERS: kafka:29092
-  #     SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
-  #     SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-ledger:5432/${LEDGER_POSTGRES_DB:-ratto_ledger}
-  #     SPRING_DATASOURCE_USERNAME: ${LEDGER_POSTGRES_USER:-ledger}
-  #     SPRING_DATASOURCE_PASSWORD: ${LEDGER_POSTGRES_PASSWORD:-ledger}
-  #   healthcheck:
-  #     test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:9090/actuator/health/readiness >/dev/null 2>&1"]
-  #     interval: 15s
-  #     timeout: 5s
-  #     retries: 10
-  #     start_period: 45s
-  #   restart: unless-stopped
+  event-ledger:
+    build:
+      context: .
+      dockerfile: event-ledger/Dockerfile
+    image: ratto-event-ledger:local
+    depends_on:
+      kafka:
+        condition: service_healthy
+      postgres-ledger:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:9073:9090"
+    environment:
+      SERVER_PORT: 9090
+      MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health,info,metrics,prometheus
+      MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED: "true"
+      MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS: always
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-ledger:5432/${LEDGER_POSTGRES_DB:-ratto_ledger}
+      SPRING_DATASOURCE_USERNAME: ${LEDGER_POSTGRES_USER:-ledger}
+      SPRING_DATASOURCE_PASSWORD: ${LEDGER_POSTGRES_PASSWORD:-ledger}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:9090/actuator/health/readiness >/dev/null 2>&1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 45s
+    restart: unless-stopped
 
   # kafka-ui:
   #   image: provectuslabs/kafka-ui:v0.7.2

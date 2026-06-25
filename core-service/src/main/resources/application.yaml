@@ -15,6 +15,19 @@ spring:
         jwt:
           issuer-uri: http://localhost:3000/realms/ratto
           jwk-set-uri: http://localhost:8081/realms/ratto/protocol/openid-connect/certs
+  kafka:
+    bootstrap-servers: localhost:9092
+
+kafka:
+  bootstrap-servers: ${spring.kafka.bootstrap-servers}
+
+aws:
+  s3:
+    bucket: ${AWS_S3_BUCKET:}
+    region: ${AWS_S3_REGION:us-east-1}
+    access-key: ${AWS_S3_ACCESS_KEY:}
+    secret-key: ${AWS_S3_SECRET_KEY:}
+    path-style-access-enabled: ${AWS_S3_PATH_STYLE_ACCESS_ENABLED:false}
 
 security:
   audience: core-service-api

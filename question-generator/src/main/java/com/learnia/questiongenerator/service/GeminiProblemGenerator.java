@@ -10,6 +10,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 import com.learnia.models.study.StudyAnswer;
 import com.learnia.models.study.StudyProblem;
 import com.learnia.models.study.StudyProblemSet;
+import com.learnia.events.StudyLanguage;
 import com.learnia.questiongenerator.model.gemini.GeminiContent;
 import com.learnia.questiongenerator.model.gemini.GeminiGenerateContentRequest;
 import com.learnia.questiongenerator.model.gemini.GeminiGenerateContentResponse;
@@ -31,8 +32,11 @@ public class GeminiProblemGenerator implements AiProblemGenerator {
 
     private static final String INSTRUCTION = """
             Detect the predominant language of the supplied document.
+            The requested study language controls the final language of the study problem set,
+            independent of the document language.
             Write the document summary, questions, answers, subjects, difficulty labels, and every
-            explanation in that same language. For multilingual documents, use the predominant language.
+            explanation in the requested study language.
+            Use the optional study goal as context to select and frame the most useful questions.
             Create relevant, non-repetitive study questions using only facts from the document.
             Generate exactly 5 questions, prioritizing the document's most important and distinct topics.
             For each question, classify its broad subject and a specific theme suitable for tracking
@@ -60,10 +64,12 @@ public class GeminiProblemGenerator implements AiProblemGenerator {
                     "answers", GeminiJsonSchema.array(ANSWER_SCHEMA, 4, 4)));
 
     private static final GeminiJsonSchema RESPONSE_SCHEMA = GeminiJsonSchema.object(
-            List.of("documentLanguage", "documentSummary", "problems"),
+            List.of("documentLanguage", "studyLanguage", "documentSummary", "problems"),
             Map.of(
                     "documentLanguage", GeminiJsonSchema.string(
                             "BCP 47 language tag for the predominant document language"),
+                    "studyLanguage", GeminiJsonSchema.string(
+                            "Requested BCP 47 output language tag. Must match the requested study language."),
                     "documentSummary", GeminiJsonSchema.string(),
                     "problems", GeminiJsonSchema.array(PROBLEM_SCHEMA, MINIMUM_PROBLEM_COUNT, MAXIMUM_PROBLEM_COUNT)));
 
@@ -87,10 +93,13 @@ public class GeminiProblemGenerator implements AiProblemGenerator {
     }
 
     @Override
-    public Mono<GeneratedProblems> generate(String extractedText) {
+    public Mono<GeneratedProblems> generate(String extractedText, String description, String studyLanguage) {
+        if (!StudyLanguage.isSupported(studyLanguage)) {
+            return Mono.error(new IllegalArgumentException("Unsupported study language: " + studyLanguage));
+        }
         GeminiGenerateContentRequest request = new GeminiGenerateContentRequest(
                 GeminiContent.system(INSTRUCTION),
-                List.of(GeminiContent.user(extractedText)),
+                List.of(GeminiContent.user(buildUserPrompt(extractedText, description, studyLanguage))),
                 new GeminiGenerationConfig(
                         "application/json",
                         RESPONSE_SCHEMA,
@@ -109,6 +118,22 @@ public class GeminiProblemGenerator implements AiProblemGenerator {
                                         "Gemini returned HTTP " + response.statusCode().value() + ": " + body)))
                 .bodyToMono(GeminiGenerateContentResponse.class)
                 .map(this::toGeneratedProblems);
+    }
+
+    private String buildUserPrompt(String extractedText, String description, String studyLanguage) {
+        StringBuilder prompt = new StringBuilder();
+        prompt.append("Requested study language: ")
+                .append(studyLanguage)
+                .append(" (")
+                .append(StudyLanguage.label(studyLanguage))
+                .append(").\n");
+        if (description != null && !description.isBlank()) {
+            prompt.append("Study goal/context: ")
+                    .append(description.trim())
+                    .append("\n");
+        }
+        prompt.append("Document text:\n").append(extractedText);
+        return prompt.toString();
     }
 
     private GeneratedProblems toGeneratedProblems(GeminiGenerateContentResponse response) {
@@ -133,6 +158,9 @@ public class GeminiProblemGenerator implements AiProblemGenerator {
     private void validate(StudyProblemSet problemSet) {
         if (isBlank(problemSet.documentLanguage())) {
             throw new IllegalArgumentException("Gemini response must contain the document language");
+        }
+        if (!StudyLanguage.isSupported(problemSet.studyLanguage())) {
+            throw new IllegalArgumentException("Gemini response must contain a supported study language");
         }
         if (isBlank(problemSet.documentSummary())) {
             throw new IllegalArgumentException("Gemini response must contain the document summary");

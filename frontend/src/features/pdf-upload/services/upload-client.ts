@@ -4,6 +4,7 @@ import type {
   ConfirmUploadCommand,
   DirectUploadRequest,
   PreparedUpload,
+  StudyLanguage,
   UploadResult,
 } from "@/features/pdf-upload/models/upload.models";
 
@@ -13,12 +14,16 @@ const MAX_PDF_SIZE_BYTES = 30 * 1024 * 1024;
 export async function uploadPdfs(
   files: File[],
   description: string,
+  studyLanguage: StudyLanguage,
   token: string,
+  workspaceId?: string,
 ): Promise<UploadResult> {
   validateFiles(files);
 
   const prepared = await prepare({
+    workspaceId,
     description: description.trim() || undefined,
+    studyLanguage,
     files: files.map((file) => ({
       fileName: file.name,
       contentType: "application/pdf",
@@ -33,7 +38,9 @@ export async function uploadPdfs(
   );
 
   const confirmRequest: ConfirmDirectUploadRequest = {
+    workspaceId,
     description: description.trim() || undefined,
+    studyLanguage,
     files: prepared.files.map(({ fileUuid, fileName, s3Path }) => ({
       fileUuid,
       fileName,
@@ -59,7 +66,7 @@ async function uploadFileToS3(file: File, uploadUrl: string): Promise<void> {
     body: file,
   });
   if (!response.ok) {
-    throw new Error(`S3 recusou o upload de ${file.name} (${response.status}).`);
+    throw new Error(`Não foi possível enviar ${file.name}. Tente novamente em alguns instantes.`);
   }
 }
 

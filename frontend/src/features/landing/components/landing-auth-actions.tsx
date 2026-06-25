@@ -25,9 +25,8 @@ export function LandingAuthActions() {
 
   return (
     <div className="landing-auth-actions">
-      <button disabled={!keycloak} onClick={() => void keycloak?.login({ redirectUri })} type="button">Entrar</button>
-      <button className="primary" disabled={!keycloak} onClick={() => void keycloak?.register({ redirectUri })} type="button">
-        Criar conta
+      <button className="primary" disabled={!keycloak} onClick={() => void keycloak?.login({ redirectUri })} type="button">
+        Entrar
       </button>
     </div>
   );

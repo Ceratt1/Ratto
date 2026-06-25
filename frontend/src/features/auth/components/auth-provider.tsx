@@ -12,7 +12,6 @@ interface AuthContextValue {
   profile: UserProfile | null;
   getToken: () => Promise<string>;
   login: () => void;
-  register: () => void;
   logout: () => void;
 }
 
@@ -63,7 +62,6 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
     profile,
     getToken,
     login: () => void keycloak?.login(),
-    register: () => void keycloak?.register(),
     logout: () => void keycloak?.logout({ redirectUri: window.location.origin }),
   }), [authenticated, getToken, initialized, keycloak, profile]);
 

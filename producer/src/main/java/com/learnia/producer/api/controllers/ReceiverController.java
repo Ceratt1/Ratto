@@ -29,6 +29,7 @@ import com.learnia.validation.ValidPdfFiles;
 
 import reactor.core.publisher.Mono;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Pattern;
 
 @RestController
 @Validated
@@ -44,7 +45,11 @@ public class ReceiverController {
     @PutMapping(value = "/{uuidRequest}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public Mono<String> receive(
             @PathVariable(value = "uuidRequest", required = true) String uuidRequest,
+            @RequestPart(value = "workspaceId", required = false) String workspaceId,
             @RequestPart(value = "description", required = false) @Length(max = 200) String description,
+            @RequestPart(value = "studyLanguage", required = true)
+            @Pattern(regexp = "^(en|pt-BR|es)$", message = "studyLanguage must be one of en, pt-BR, es")
+            String studyLanguage,
             @ValidPdfFiles(maxSizeMb = 30, maxFiles = 1) @RequestPart("files") List<FilePart> files,
             @AuthenticationPrincipal Jwt jwt) {
 
@@ -52,7 +57,9 @@ public class ReceiverController {
         User user = User.toDomain(
                 uuidUser,
                 UUID.fromString(uuidRequest),
+                workspaceId == null || workspaceId.isBlank() ? null : UUID.fromString(workspaceId),
                 description,
+                studyLanguage,
                 files.stream().map(file -> File.toDomain(uuidUser.toString(), uuidRequest, file.filename())).toList());
 
         return service.uploadFilesAndSendToTopic(user, files)

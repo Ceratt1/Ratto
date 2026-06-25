@@ -37,8 +37,7 @@ async function producerRequest<T>(path: string, init: RequestInit): Promise<T> {
   });
 
   if (!response.ok) {
-    const details = await response.text();
-    throw new Error(`Producer retornou ${response.status}: ${details || response.statusText}`);
+    throw new Error("Não foi possível preparar esse material para estudo.");
   }
 
   if (response.status === 204 || response.status === 202) {

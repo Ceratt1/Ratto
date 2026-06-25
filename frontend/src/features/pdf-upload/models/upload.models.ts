@@ -5,7 +5,9 @@ export interface DirectUploadFileRequest {
 }
 
 export interface DirectUploadRequest {
+  workspaceId?: string;
   description?: string;
+  studyLanguage: StudyLanguage;
   files: DirectUploadFileRequest[];
 }
 
@@ -30,7 +32,9 @@ export interface ConfirmFileUploadRequest {
 }
 
 export interface ConfirmDirectUploadRequest {
+  workspaceId?: string;
   description?: string;
+  studyLanguage: StudyLanguage;
   files: ConfirmFileUploadRequest[];
 }
 
@@ -49,3 +53,5 @@ export interface UploadResult {
 export interface ApiError {
   message: string;
 }
+
+export type StudyLanguage = "pt-BR" | "en" | "es";

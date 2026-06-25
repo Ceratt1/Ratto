@@ -7,18 +7,30 @@ import { useAuth } from "@/features/auth/components/auth-provider";
 import { FileList } from "@/features/pdf-upload/components/file-list";
 import { UploadResultCard } from "@/features/pdf-upload/components/upload-result-card";
 import type {
+  StudyLanguage,
   UploadResult,
 } from "@/features/pdf-upload/models/upload.models";
 import { uploadPdfs } from "@/features/pdf-upload/services/upload-client";
 
 const MAX_FILES = 1;
 const MAX_FILE_SIZE_BYTES = 30 * 1024 * 1024;
+const LANGUAGE_OPTIONS: Array<{ value: StudyLanguage; flag: string; label: string }> = [
+  { value: "pt-BR", flag: "🇧🇷", label: "Português" },
+  { value: "en", flag: "🇺🇸", label: "Inglês" },
+  { value: "es", flag: "🇪🇸", label: "Espanhol" },
+];
 
-export function UploadForm() {
-  const { authenticated, getToken, initialized, profile } = useAuth();
+interface UploadFormProps {
+  workspaceId?: string;
+  onUploaded?: (result: UploadResult) => void;
+}
+
+export function UploadForm({ workspaceId, onUploaded }: UploadFormProps) {
+  const { authenticated, getToken, initialized } = useAuth();
   const inputRef = useRef<HTMLInputElement>(null);
   const [files, setFiles] = useState<File[]>([]);
   const [description, setDescription] = useState("");
+  const [studyLanguage, setStudyLanguage] = useState<StudyLanguage>("pt-BR");
   const [status, setStatus] = useState<"idle" | "uploading" | "success" | "error">("idle");
   const [error, setError] = useState("");
   const [result, setResult] = useState<UploadResult | null>(null);
@@ -62,10 +74,11 @@ export function UploadForm() {
 
     setStatus("uploading");
     try {
-      const payload = await uploadPdfs(files, description, await getToken());
+      const payload = await uploadPdfs(files, description, studyLanguage, await getToken(), workspaceId);
       setResult(payload);
       setStatus("success");
       setFiles([]);
+      onUploaded?.(payload);
       if (inputRef.current) {
         inputRef.current.value = "";
       }
@@ -78,7 +91,7 @@ export function UploadForm() {
   const uploading = status === "uploading";
 
   return (
-    <div className="upload-layout">
+    <div className="upload-layout compact-upload">
       <form className="upload-panel" onSubmit={submit}>
         <div className="field">
           <label htmlFor="description">Objetivo do estudo</label>
@@ -92,6 +105,26 @@ export function UploadForm() {
             value={description}
           />
           <span className="field-hint">{description.length}/200</span>
+        </div>
+
+        <div className="field">
+          <span className="field-label">Idioma da prova</span>
+          <div className="language-segmented" role="radiogroup" aria-label="Idioma da prova">
+            {LANGUAGE_OPTIONS.map((option) => (
+              <button
+                aria-checked={studyLanguage === option.value}
+                className={studyLanguage === option.value ? "active" : ""}
+                disabled={uploading || !authenticated}
+                key={option.value}
+                onClick={() => setStudyLanguage(option.value)}
+                role="radio"
+                type="button"
+              >
+                <span className="language-flag" aria-hidden="true">{option.flag}</span>
+                {option.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="field">
@@ -116,45 +149,13 @@ export function UploadForm() {
 
         <FileList disabled={uploading} files={files} onRemove={removeFile} />
 
-        {!authenticated && initialized && <p className="error-message">Entre ou cadastre-se para enviar PDFs.</p>}
+        {!authenticated && initialized && <p className="error-message">Entre para enviar PDFs.</p>}
         {error && <p className="error-message">{error}</p>}
 
         <Button disabled={!authenticated || uploading || files.length === 0} type="submit">
-          {uploading ? "Preparando sua revisão..." : "Criar questões para praticar"}
+          {uploading ? "Preparando..." : "Gerar prova"}
         </Button>
       </form>
-
-      <aside className="study-journey-panel">
-        <span className="eyebrow">Sua jornada de aprendizagem</span>
-        <h2>Do material a uma revisão mais leve</h2>
-        <ol className="study-journey-list">
-          <li>
-            <span>1</span>
-            <div>
-              <strong>Organize seus materiais</strong>
-              <p>Escolha os conteúdos que fazem parte do seu objetivo de estudo atual.</p>
-            </div>
-          </li>
-          <li>
-            <span>2</span>
-            <div>
-              <strong>Pratique de forma ativa</strong>
-              <p>Transforme a leitura em questões que ajudam a fixar os principais conceitos.</p>
-            </div>
-          </li>
-          <li>
-            <span>3</span>
-            <div>
-              <strong>Encontre pontos para revisar</strong>
-              <p>Use suas dúvidas e erros para encontrar lacunas e direcionar as próximas revisões.</p>
-            </div>
-          </li>
-        </ol>
-        <div className="user-id">
-          <span>Sua identificação de estudante</span>
-          <code>{result?.uuidUser ?? profile?.id ?? "disponível após entrar no Ratto"}</code>
-        </div>
-      </aside>
 
       {result && <UploadResultCard result={result} />}
     </div>

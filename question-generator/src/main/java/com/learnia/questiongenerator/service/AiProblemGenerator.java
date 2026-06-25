@@ -6,5 +6,5 @@ import reactor.core.publisher.Mono;
 
 public interface AiProblemGenerator {
 
-    Mono<GeneratedProblems> generate(String extractedText);
+    Mono<GeneratedProblems> generate(String extractedText, String description, String studyLanguage);
 }

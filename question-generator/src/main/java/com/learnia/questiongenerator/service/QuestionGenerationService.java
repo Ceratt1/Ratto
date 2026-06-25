@@ -38,7 +38,7 @@ public class QuestionGenerationService {
         String outputPath = outputPath(event);
         return s3StorageService.downloadFile(event.extractedTextS3Path())
                 .map(bytes -> new String(bytes, StandardCharsets.UTF_8))
-                .flatMap(aiProblemGenerator::generate)
+                .flatMap(text -> aiProblemGenerator.generate(text, event.description(), event.studyLanguage()))
                 .flatMap(result -> {
                     byte[] output = serialize(result);
                     return s3StorageService.uploadBytes(outputPath, output, "application/json")
@@ -76,11 +76,15 @@ public class QuestionGenerationService {
                 event.uuidUser(),
                 event.uuidRequest(),
                 event.fileUuid(),
+                event.workspaceId(),
+                event.originalFileName(),
                 event.extractedTextS3Path(),
                 outputPath,
+                event.description(),
                 result.aiProvider(),
                 result.aiModel(),
                 result.problemSet().documentLanguage(),
+                result.problemSet().studyLanguage(),
                 result.problemCount(),
                 outputBytes);
     }

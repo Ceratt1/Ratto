@@ -1,8 +1,8 @@
 {
   "realm": "ratto",
   "enabled": true,
-  "registrationAllowed": true,
-  "registrationEmailAsUsername": true,
+  "registrationAllowed": false,
+  "registrationEmailAsUsername": false,
   "duplicateEmailsAllowed": false,
   "verifyEmail": false,
   "resetPasswordAllowed": false,
@@ -22,6 +22,18 @@
     }
   ],
   "passwordPolicy": "hashAlgorithm(argon2)",
+  "roles": {
+    "realm": [
+      {
+        "name": "admin",
+        "description": "Ratto administrator"
+      },
+      {
+        "name": "user",
+        "description": "Ratto student"
+      }
+    ]
+  },
   "clients": [
     {
       "clientId": "ratto-frontend",

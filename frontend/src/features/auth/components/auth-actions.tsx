@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/features/auth/components/auth-provider";
 
 export function AuthActions() {
-  const { authenticated, initialized, login, logout, profile, register } = useAuth();
+  const { authenticated, initialized, login, logout, profile } = useAuth();
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -58,7 +58,6 @@ export function AuthActions() {
   return (
     <div className="auth-actions">
       <button className="button" onClick={login} type="button">Entrar</button>
-      <button className="button" onClick={register} type="button">Cadastrar</button>
     </div>
   );
 }

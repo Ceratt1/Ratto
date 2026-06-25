@@ -4,6 +4,7 @@ import java.util.List;
 
 public record StudyProblemSet(
         String documentLanguage,
+        String studyLanguage,
         String documentSummary,
         List<StudyProblem> problems) {
 }
