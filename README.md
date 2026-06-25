@@ -1,130 +1,110 @@
-# Pipeline de Ingestão de PDF (Genérico)
+# Ratto
 
-Este projeto implementa um fluxo assíncrono para ingestão de um ou vários PDFs enviados por usuário, com extração de conteúdo e geração de respostas/itens estruturados a partir desses documentos.
+Plataforma de apoio à aprendizagem que transforma PDFs de estudo em questões de múltipla escolha com ajuda de IA. O objetivo é tirar o aluno de uma rotina passiva de leitura e apoiar prática, revisão, identificação de lacunas e evolução de desempenho.
 
-![Arquitetura de alto nível](docs/v1.png)
+## Artefatos de Arquitetura
 
-## Entrada única e segurança
+- [architecture.excalidraw](architecture.excalidraw): diagrama simples e editável do fluxo da arquitetura, pensado para explicar o sistema para pessoas técnicas e não técnicas.
+- [docs/fluxo-ratto.svg](docs/fluxo-ratto.svg): diagrama renderizado do fluxo assíncrono, do upload do PDF até a geração das questões.
+- [docs/arquitetura-ratto.md](docs/arquitetura-ratto.md): versão detalhada em Mermaid, com tópicos Kafka, consumidores, produtores e convenção dos paths no S3.
 
-O `api-gateway` é a única entrada HTTP pública do ambiente e fica disponível em `http://localhost:3000`. Ele entrega a landing page e a área autenticada, publica o Keycloak na mesma origem e encaminha somente as APIs explicitamente permitidas.
+## Visão Geral
 
-- `/` é público e explica o produto.
-- `/app` inicia autenticação pelo Keycloak.
-- `/api/uploads/**`, `/api/users/me` e `/api/v1/**` exigem JWT com audiência `gateway-api`.
+O fluxo principal do Ratto é:
+
+1. O aluno acessa o frontend pelo gateway público.
+2. O frontend autentica com Keycloak e usa um BFF Next.js para preparar o upload.
+3. O `producer` gera uma URL pré-assinada para upload direto no S3.
+4. O navegador envia o PDF diretamente ao S3.
+5. O `producer` confirma o arquivo e publica um evento Kafka.
+6. O `pdf-extractor` extrai o texto e salva `extracted.txt` no S3.
+7. O `question-generator` usa Gemini para gerar questões e salva `questions.json` no S3.
+8. O `event-ledger` observa os tópicos Kafka e registra eventos de forma append-only.
+
+O Kafka carrega IDs, metadados de rastreio e paths. Os conteúdos ficam no S3.
+
+```text
+requests/{uuidUser}/{uuidRequest}/{fileUuid}/original.pdf
+requests/{uuidUser}/{uuidRequest}/{fileUuid}/extracted.txt
+requests/{uuidUser}/{uuidRequest}/{fileUuid}/questions.json
+```
+
+## Componentes
+
+- `api-gateway/`: único HTTP público de negócio. Entrega o frontend, publica Keycloak na mesma origem e roteia APIs permitidas.
+- `frontend/`: Next.js App Router, landing pública, área autenticada em `/app` e BFF para upload/perfil.
+- `core-service/`: monólito modular Spring Modulith. Hoje mantém projeções de perfil de usuário; no plano do produto, concentra estudo, questões, tentativas, progresso e dashboard.
+- `generics/`: biblioteca compartilhada com contratos de eventos, modelos comuns, validação e utilitários AWS S3.
+- `producer/`: API WebFlux que prepara upload direto para S3, confirma arquivos e publica o início do processamento.
+- `pdf-extractor/`: worker Kafka que baixa o PDF, extrai texto com PDFBox e grava `extracted.txt`.
+- `question-generator/`: worker Kafka que lê o texto extraído, chama Gemini e grava `questions.json`.
+- `event-ledger/`: consumidor de auditoria que observa os tópicos e grava eventos imutáveis no PostgreSQL.
+- `infra/keycloak/`: realm, configuração idempotente e tema visual customizado do Ratto.
+
+## Tópicos Kafka
+
+| Tópico | Publicado por | Consumido por | Função |
+| --- | --- | --- | --- |
+| `knowledgement-topic` | `producer` | `pdf-extractor`, `event-ledger` | Avisar que um PDF foi recebido e pode ser processado. |
+| `pdf-text-extracted-topic` | `pdf-extractor` | `question-generator`, `event-ledger` | Avisar que o texto extraído está pronto no S3. |
+| `study-problems-generated-topic` | `question-generator` | `event-ledger` no estado atual | Avisar que as questões foram geradas e salvas no S3. |
+| `pdf-ingestion-errors` | `pdf-extractor`, `question-generator` | `event-ledger` | Registrar falhas do processamento assíncrono. |
+
+## Segurança e Entrada Única
+
+O `api-gateway` é a única entrada HTTP pública do ambiente e fica disponível em `http://localhost:3000`.
+
+- `/` é público e apresenta o produto.
+- `/app` inicia a experiência autenticada com Keycloak.
+- `/api/uploads/**`, `/api/users/me` e `/api/v1/**` exigem JWT.
 - `core-service` e `producer` validam novamente o token com suas próprias audiências.
-- O upload multipart legado do producer não é publicado; o navegador envia PDFs diretamente ao S3 por URL pré-assinada.
-- Cada requisição recebe `X-Correlation-Id`; falhas de upstream passam por circuit breaker e retornam `503` padronizado.
+- O binário do PDF não passa pelo gateway; o navegador envia o arquivo diretamente ao S3 por URL pré-assinada.
+- Cada requisição recebe `X-Correlation-Id`; falhas de upstream passam por circuit breaker.
 
-Os endereços internos podem ser trocados por DNS de serviços ou load balancers através das variáveis `GATEWAY_ROUTES_*`, sem alterar as rotas públicas.
+## Rodando com Docker Compose
 
-### Login social com Google
-
-O Keycloak continua sendo o único issuer da aplicação e centraliza também os provedores sociais. Para ativar o Google:
-
-1. Crie um cliente OAuth 2.0 do tipo aplicação Web no Google Cloud Console.
-2. Cadastre `http://localhost:3000/realms/ratto/broker/google/endpoint` como URI de redirecionamento autorizada.
-3. Preencha `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` e `SSO_GOOGLE_ENABLED=true` no `.env`.
-4. Execute `docker compose up -d --force-recreate keycloak-config`.
-
-O job configura ou atualiza o provedor sem apagar usuários. Azure/Entra ID segue o mesmo padrão pelas variáveis `SSO_AZURE_ENABLED`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET` e `AZURE_TENANT_ID`.
-
-## Visão geral
-
-De forma resumida:
-
-1. O usuário envia um ou mais PDFs como provas (ou documentos de referência) pela API.
-2. O sistema registra o job e armazena os arquivos no storage.
-3. Um pipeline de ingestão processa os PDFs, extrai o conteúdo e organiza em partes (chunks).
-4. Um gerador de perguntas/respostas usa o conteúdo extraído para produzir respostas estruturadas.
-5. Um ledger imutável registra cada evento publicado no Kafka.
-6. Os resultados são validados e armazenados no S3.
-
-## Fluxo do sistema
-
-1. **Entrada (API / producer)**
-- Recebe upload de PDF(s).
-- Salva arquivos em storage (ex.: S3).
-- Cria registro de processamento no banco com status inicial (ex.: `PENDING`).
-- Publica mensagem em fila para iniciar a extração.
-
-2. **Extração (Extractor Service)**
-- Consome a fila de extração.
-- Baixa o PDF do storage.
-- Extrai texto (com OCR quando necessário).
-- Divide o conteúdo em chunks e persiste.
-- Publica mensagem para etapa de geração de Q&A.
-
-3. **Geração de Respostas (Question Generator / Consumer)**
-- Consome eventos da fila de geração.
-- Carrega chunks extraídos.
-- Gera perguntas e respostas com modelo de linguagem.
-- Valida e remove duplicidades.
-- Salva resultados finais no banco.
-
-4. **Auditoria (Event Ledger)**
-- Consome os quatro tópicos atuais sem participar do processamento.
-- Persiste payload, hash SHA-256 e posição Kafka no PostgreSQL.
-- Deduplica por tópico, partição e offset.
-- Rejeita `UPDATE` e `DELETE`; correções devem ser novos eventos.
-
-## Componentes lógicos
-
-- **API Gateway / Publisher**: ponto de entrada para upload e consulta.
-- **Storage**: persistência de arquivos originais.
-- **Fila (Queue)**: desacoplamento entre etapas.
-- **Serviço de Extração**: leitura/OCR e preparação do conteúdo.
-- **Serviço de Geração**: criação de respostas estruturadas.
-- **Event Ledger / PostgreSQL**: histórico append-only para auditoria e rastreabilidade.
-
-## Por que essa arquitetura é genérica
-
-O desenho foi pensado para ser reaproveitado em múltiplos domínios além de provas, por exemplo:
-
-- análise de contratos,
-- processamento de laudos,
-- extração de conhecimento de manuais,
-- criação de base de perguntas para atendimento.
-
-A troca de domínio acontece principalmente em três pontos:
-
-- **prompt/regras de geração**,
-- **esquema de validação dos resultados**,
-- **formato de saída esperado pelo serviço consumidor**.
-
-Ou seja, o pipeline de ingestão (upload -> extração -> geração -> persistência) permanece o mesmo, e só a camada de negócio específica muda.
-
-## Subindo Kafka com Docker Compose
-
-Para evitar subir o Kafka manualmente, use o `docker-compose.yml` da raiz do projeto:
+Crie o `.env` a partir do exemplo e suba o ambiente:
 
 ```bash
-docker compose up -d
+cp .env.example .env
+docker compose up --build -d
 ```
 
-Interface web do Kafka, disponível apenas no host local:
+Entrada principal:
 
-- URL: `http://localhost:8080`
-
-O PostgreSQL do ledger fica disponível em `localhost:5432` e o Actuator do serviço em `http://localhost:9073/actuator/health`. Consulte a linha do tempo de uma requisição com:
-
-```bash
-docker exec postgres-ledger psql -U ledger -d ratto_ledger \
-  -c "SELECT event_type, source_service, recorded_at FROM event_ledger WHERE uuid_request = '<UUID>' ORDER BY recorded_at;"
+```text
+http://localhost:3000
 ```
 
-O ledger é um event store de auditoria. Um outbox pattern ainda poderá ser adicionado dentro de cada serviço produtor para garantir atomicidade entre alterações locais e publicação no Kafka.
+Serviços internos como frontend, Keycloak, `core-service` e `producer` não devem ser expostos diretamente como entrada de negócio. Kafka, PostgreSQL e Actuator são portas de desenvolvimento vinculadas ao host local.
 
-Para parar/remover o container:
+Para parar:
 
 ```bash
 docker compose down
 ```
 
-## Frontend de upload
+## Desenvolvimento Local
 
-O gateway entrega o frontend Next.js em `http://localhost:3000`. A interface permite enviar até dois PDFs, usa o BFF para preparar e confirmar o processamento e envia os arquivos diretamente para URLs assinadas do S3.
+Instale primeiro a biblioteca compartilhada quando for rodar serviços Java fora do Compose:
 
-Antes de testar pelo navegador, configure o CORS do bucket para permitir `PUT` originado pelo frontend local:
+```bash
+mvn -f generics/pom.xml install
+```
+
+Comandos úteis:
+
+```bash
+cd frontend && npm run dev
+mvn -f producer/pom.xml spring-boot:run
+mvn -f pdf-extractor/pom.xml spring-boot:run
+mvn -f question-generator/pom.xml spring-boot:run
+mvn -f event-ledger/pom.xml spring-boot:run
+```
+
+## Upload Direto para S3
+
+Antes de testar pelo navegador com bucket real, configure CORS para permitir `PUT` vindo do frontend local:
 
 ```bash
 aws s3api put-bucket-cors \
@@ -132,8 +112,27 @@ aws s3api put-bucket-cors \
   --cors-configuration file://docs/s3-cors.json
 ```
 
-Depois, suba o pipeline completo:
+O frontend atual aceita 1 PDF por envio, com limite de 30 MB.
+
+## Login Social
+
+O Keycloak é o issuer único da aplicação e também centraliza provedores sociais.
+
+Para ativar Google:
+
+1. Crie um cliente OAuth 2.0 do tipo aplicação Web no Google Cloud Console.
+2. Cadastre `http://localhost:3000/realms/ratto/broker/google/endpoint` como URI de redirecionamento autorizada.
+3. Preencha `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` e `SSO_GOOGLE_ENABLED=true` no `.env`.
+4. Execute:
 
 ```bash
-docker compose up --build -d
+docker compose up -d --force-recreate keycloak-config
 ```
+
+Azure/Entra ID segue o mesmo padrão com `SSO_AZURE_ENABLED`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET` e `AZURE_TENANT_ID`.
+
+## Observações do Estado Atual
+
+- `event-ledger` está implementado, mas seu serviço e PostgreSQL estão comentados no `docker-compose.yml` atual.
+- O `core-service` ainda não consome `study-problems-generated-topic`; isso aparece como direção planejada no material do projeto.
+- O fluxo documentado mantém a separação entre mensagens Kafka e artefatos S3: eventos carregam referências, S3 guarda os documentos e resultados.

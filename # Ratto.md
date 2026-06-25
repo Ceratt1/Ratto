@@ -140,7 +140,8 @@ Os artefatos previstos para o projeto são:
    Ainda em construção.
 
 2. **Diagrama de fluxo assíncrono com Kafka**
-   Ainda em construção.
+   Demonstra o caminho percorrido desde o upload do PDF até a geração e persistência das questões.
+   Artefato renderizado: `docs/fluxo-ratto.svg`.
 
 3. **Histórias de usuário**
    Ainda em construção.
