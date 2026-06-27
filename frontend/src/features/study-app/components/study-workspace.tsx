@@ -73,7 +73,7 @@ export function StudyWorkspace() {
   const { getToken, profile } = useAuth();
   const firstName = profile?.firstName || "estudante";
   const selectedWorkspace = workspaces.find((workspace) => workspace.id === selectedWorkspaceId);
-  const visibleProblemSets = selectedWorkspaceId ? problemSets : [...problemSets, ...unassigned];
+  const visibleProblemSets = problemSets;
   const visiblePendingProblemSets = pendingProblemSets.filter((pending) =>
     selectedWorkspaceId ? pending.workspaceId === selectedWorkspaceId : true,
   );
@@ -89,6 +89,7 @@ export function StudyWorkspace() {
     setWorkspaces(workspaceList);
     setUnassigned(unassignedList);
     setProblemSets(selectedList);
+    return [...selectedList, ...unassignedList];
   }, [getToken, selectedWorkspaceId]);
 
   useEffect(() => {
@@ -175,11 +176,12 @@ export function StudyWorkspace() {
           activePending.map((pending) => getProcessingStatus(token, pending.fileUuid)),
         );
         if (!active) return;
-        let hasReady = false;
+        const readyFileUuids = new Set(
+          statuses.filter((status) => status.status === "READY").map((status) => status.fileUuid),
+        );
         setPendingProblemSets((current) => current.map((pending) => {
           const nextStatus = statuses.find((status) => status.fileUuid === pending.fileUuid);
           if (!nextStatus) return pending;
-          if (nextStatus.status === "READY") hasReady = true;
           return {
             ...pending,
             status: nextStatus.status,
@@ -187,8 +189,12 @@ export function StudyWorkspace() {
             failedReason: nextStatus.failedReason,
           };
         }));
-        if (hasReady) {
-          await refresh();
+        if (readyFileUuids.size > 0) {
+          const refreshedProblemSets = await refresh();
+          const listedFileUuids = new Set(refreshedProblemSets.map((problemSet) => problemSet.fileUuid));
+          setPendingProblemSets((current) => current.filter((pending) =>
+            !readyFileUuids.has(pending.fileUuid) || !listedFileUuids.has(pending.fileUuid),
+          ));
         }
       } catch {
         if (!active) return;
@@ -204,6 +210,12 @@ export function StudyWorkspace() {
   }, [getToken, pendingProblemSets, refresh]);
 
   function startWorkspaceCreate() {
+    if (workspaceFormOpen && editingWorkspaceId === null) {
+      setWorkspaceFormOpen(false);
+      setWorkspaceName("");
+      setWorkspaceDescription("");
+      return;
+    }
     setEditingWorkspaceId(null);
     setWorkspaceName("");
     setWorkspaceDescription("");
@@ -352,7 +364,6 @@ export function StudyWorkspace() {
       ?? attempt.correctCount
       ?? attempt.answers.filter((answer) => answer.correct).length;
     const score = Number(currentFeedback?.score ?? attempt.score ?? 0);
-    const questionProgress = Math.round(((currentQuestionIndex + 1) / activeProblemSet.questions.length) * 100);
     const answeredProgress = Math.round((answeredCount / activeProblemSet.questions.length) * 100);
 
     if (quizFinished) {
@@ -411,8 +422,8 @@ export function StudyWorkspace() {
             <strong>{correctCount}</strong>
           </div>
         </div>
-        <div className="quiz-progress-track" aria-label={`${questionProgress}% da prova percorrida`}>
-          <span style={{ width: `${Math.max(answeredProgress, questionProgress)}%` }} />
+        <div className="quiz-progress-track" aria-label={`${answeredProgress}% da prova respondida`}>
+          <span style={{ width: `${answeredProgress}%` }} />
         </div>
 
         <article className="quiz-card">
@@ -496,33 +507,34 @@ export function StudyWorkspace() {
             <FileUp size={18} />
             Gerar com PDF
           </button>
+          {workspaceFormOpen && (
+            <div className="folder-menu-popover">
+              <form className="inline-folder-form" onSubmit={saveWorkspace}>
+                <FolderPlus size={20} />
+                <input
+                  maxLength={120}
+                  onChange={(event) => setWorkspaceName(event.target.value)}
+                  placeholder="Nome da pasta"
+                  value={workspaceName}
+                />
+                <input
+                  maxLength={500}
+                  onChange={(event) => setWorkspaceDescription(event.target.value)}
+                  placeholder="Objetivo de estudo"
+                  value={workspaceDescription}
+                />
+                <button className="icon-button primary" disabled={!workspaceName.trim()} type="submit">
+                  <Save size={18} />
+                  {editingWorkspaceId ? "Salvar edição" : "Salvar"}
+                </button>
+              </form>
+            </div>
+          )}
         </div>
       </div>
 
       {error && <p className="error-message">{error}</p>}
       {loading && <p className="route-state">Carregando seus estudos...</p>}
-
-      {workspaceFormOpen && (
-        <form className="inline-folder-form" onSubmit={saveWorkspace}>
-          <FolderPlus size={20} />
-          <input
-            maxLength={120}
-            onChange={(event) => setWorkspaceName(event.target.value)}
-            placeholder="Nome da pasta"
-            value={workspaceName}
-          />
-          <input
-            maxLength={500}
-            onChange={(event) => setWorkspaceDescription(event.target.value)}
-            placeholder="Objetivo de estudo"
-            value={workspaceDescription}
-          />
-          <button className="icon-button primary" disabled={!workspaceName.trim()} type="submit">
-            <Save size={18} />
-            Salvar
-          </button>
-        </form>
-      )}
 
       <div className="study-layout-flat">
         <aside className="folder-rail" id="areas">
@@ -533,7 +545,7 @@ export function StudyWorkspace() {
           >
             <Inbox size={18} />
             <span>Todas as provas</span>
-            <strong>{problemSets.length + unassigned.length}</strong>
+            <strong>{problemSets.length}</strong>
           </button>
 
           {workspaces.map((workspace) => (

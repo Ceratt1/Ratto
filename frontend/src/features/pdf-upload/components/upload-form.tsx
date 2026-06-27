@@ -132,10 +132,12 @@ export function UploadForm({ workspaceId, onUploaded }: UploadFormProps) {
             <label htmlFor="files">Arquivos PDF</label>
             <span>{files.length}/1 selecionado</span>
           </div>
-          <label className={`drop-zone ${uploading || !authenticated ? "disabled" : ""}`} htmlFor="files">
-            <strong>Escolha um PDF</strong>
-            <span>Até 30 MB</span>
-          </label>
+          {files.length === 0 && (
+            <label className={`drop-zone ${uploading || !authenticated ? "disabled" : ""}`} htmlFor="files">
+              <strong>Escolha um PDF</strong>
+              <span>Até 30 MB</span>
+            </label>
+          )}
           <input
             accept="application/pdf,.pdf"
             className="sr-only"

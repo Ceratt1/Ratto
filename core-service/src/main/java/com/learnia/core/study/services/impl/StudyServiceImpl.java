@@ -1,8 +1,11 @@
 package com.learnia.core.study.services.impl;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -32,6 +35,7 @@ import com.learnia.core.study.repositories.entities.StudyProblemSetEntity;
 import com.learnia.core.study.repositories.entities.StudyQuestionEntity;
 import com.learnia.core.study.repositories.entities.StudyWorkspaceEntity;
 import com.learnia.events.StudyProblemsGeneratedEvent;
+import com.learnia.models.study.StudyAnswer;
 import com.learnia.models.study.StudyProblemSet;
 import com.learnia.tools.aws.service.S3StorageService;
 
@@ -234,8 +238,10 @@ public class StudyServiceImpl implements com.learnia.core.study.services.StudySe
                     problem.theme(),
                     problem.difficulty(),
                     problem.generalExplanation());
-            for (int j = 0; j < problem.answers().size(); j++) {
-                var answer = problem.answers().get(j);
+            List<StudyAnswer> shuffledAnswers = new ArrayList<>(problem.answers());
+            Collections.shuffle(shuffledAnswers, new Random(answerShuffleSeed(event.fileUuid(), i)));
+            for (int j = 0; j < shuffledAnswers.size(); j++) {
+                var answer = shuffledAnswers.get(j);
                 question.addAnswer(new StudyAnswerEntity(j + 1, answer.answer(), answer.correct(), answer.explanation()));
             }
             entity.addQuestion(question);
@@ -339,5 +345,11 @@ public class StudyServiceImpl implements com.learnia.core.study.services.StudySe
 
     private String trimToNull(String value) {
         return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    private long answerShuffleSeed(UUID fileUuid, int questionIndex) {
+        return (fileUuid.getMostSignificantBits() * 31)
+                ^ fileUuid.getLeastSignificantBits()
+                ^ questionIndex;
     }
 }

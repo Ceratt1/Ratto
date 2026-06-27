@@ -210,6 +210,23 @@ label {
   display: block !important;
 }
 
+.pf-v5-c-form-control:has(input:not([type="checkbox"]):not([type="radio"]):not([type="submit"])) {
+  display: flex !important;
+  align-items: center;
+  min-height: 42px;
+}
+
+.pf-v5-c-form-control:has(input:not([type="checkbox"]):not([type="radio"]):not([type="submit"])) input {
+  flex: 1 1 auto;
+  min-height: 40px;
+}
+
+.pf-v5-c-form-control__utilities,
+.pf-v5-c-form-control__icon {
+  flex: 0 0 auto;
+  margin-right: 12px;
+}
+
 .pf-v5-c-input-group {
   display: flex !important;
   align-items: stretch;
