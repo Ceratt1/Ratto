@@ -1,19 +1,27 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { CSSProperties, FormEvent, ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import {
   ArrowLeft,
+  Award,
+  BarChart3,
   BookOpenCheck,
   CheckCircle2,
+  ChevronRight,
+  Clock3,
   FileUp,
   Folder,
   FolderPlus,
   Inbox,
   Languages,
+  ListChecks,
+  MoreHorizontal,
   Pencil,
   Play,
   Save,
+  Star,
+  Target,
 } from "lucide-react";
 
 import { UploadForm } from "@/features/pdf-upload/components/upload-form";
@@ -21,17 +29,24 @@ import type { UploadResult } from "@/features/pdf-upload/models/upload.models";
 import { useAuth } from "@/features/auth/components/auth-provider";
 import type {
   AnswerAttemptQuestionResponse,
+  AttemptPerformanceSummary,
   Attempt,
   PendingProblemSet,
+  PerformanceBreakdown,
+  ProblemSetPerformance,
   ProblemSetDetail,
+  ProblemSetPerformanceSummary,
   ProblemSetSummary,
+  WorkspacePerformance,
   Workspace,
 } from "@/features/study-app/models/study.models";
 import {
   answerAttemptQuestion,
   createWorkspace,
+  getProblemSetPerformance,
   getProcessingStatus,
   getProblemSet,
+  getWorkspacePerformance,
   listProblemSets,
   listWorkspaces,
   moveProblemSet,
@@ -39,7 +54,7 @@ import {
   updateWorkspace,
 } from "@/features/study-app/services/study-client";
 
-type WorkspaceView = "overview" | "create" | "practice";
+type WorkspaceView = "overview" | "create" | "practice" | "performance";
 const PENDING_STORAGE_KEY = "ratto:pending-problem-sets";
 const RATTO_PROCESSING_MESSAGES = [
   "O Ratto está lendo seu PDF...",
@@ -58,12 +73,16 @@ export function StudyWorkspace() {
   const [pendingProblemSets, setPendingProblemSets] = useState<PendingProblemSet[]>([]);
   const [messageTick, setMessageTick] = useState(0);
   const [activeProblemSet, setActiveProblemSet] = useState<ProblemSetDetail | null>(null);
+  const [workspacePerformance, setWorkspacePerformance] = useState<WorkspacePerformance | null>(null);
+  const [activeProblemSetPerformance, setActiveProblemSetPerformance] = useState<ProblemSetPerformance | null>(null);
   const [attempt, setAttempt] = useState<Attempt | null>(null);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [answerFeedback, setAnswerFeedback] = useState<AnswerAttemptQuestionResponse | null>(null);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [quizFinished, setQuizFinished] = useState(false);
   const [answering, setAnswering] = useState(false);
+  const [performanceLoading, setPerformanceLoading] = useState(false);
+  const [openProblemSetMenuId, setOpenProblemSetMenuId] = useState<string | null>(null);
   const [workspaceFormOpen, setWorkspaceFormOpen] = useState(false);
   const [editingWorkspaceId, setEditingWorkspaceId] = useState<string | null>(null);
   const [workspaceName, setWorkspaceName] = useState("");
@@ -77,6 +96,9 @@ export function StudyWorkspace() {
   const visiblePendingProblemSets = pendingProblemSets.filter((pending) =>
     selectedWorkspaceId ? pending.workspaceId === selectedWorkspaceId : true,
   );
+  const performanceByProblemSetId = useMemo(() => new Map(
+    workspacePerformance?.problemSets.map((problemSet) => [problemSet.problemSetId, problemSet]) ?? [],
+  ), [workspacePerformance]);
 
   const refresh = useCallback(async () => {
     setError("");
@@ -140,6 +162,28 @@ export function StudyWorkspace() {
     if (!profile?.id) return;
     writeStoredPendingProblemSets(profile.id, pendingProblemSets);
   }, [pendingProblemSets, profile?.id]);
+
+  useEffect(() => {
+    if (view !== "overview") return;
+    let active = true;
+    async function loadOverviewPerformance() {
+      try {
+        const token = await getToken();
+        const performance = await getWorkspacePerformance(token, selectedWorkspaceId);
+        if (active) {
+          setWorkspacePerformance(performance);
+        }
+      } catch {
+        if (active) {
+          setWorkspacePerformance(null);
+        }
+      }
+    }
+    void loadOverviewPerformance();
+    return () => {
+      active = false;
+    };
+  }, [getToken, selectedWorkspaceId, view]);
 
   useEffect(() => {
     if (pendingProblemSets.length === 0) return;
@@ -266,6 +310,33 @@ export function StudyWorkspace() {
     }
   }
 
+  async function openPerformance() {
+    setError("");
+    setPerformanceLoading(true);
+    setActiveProblemSetPerformance(null);
+    try {
+      const token = await getToken();
+      setWorkspacePerformance(await getWorkspacePerformance(token, selectedWorkspaceId));
+      setView("performance");
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Falha ao abrir desempenho.");
+    } finally {
+      setPerformanceLoading(false);
+    }
+  }
+
+  async function openProblemSetPerformance(problemSetId: string) {
+    setError("");
+    setPerformanceLoading(true);
+    try {
+      setActiveProblemSetPerformance(await getProblemSetPerformance(await getToken(), problemSetId));
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Falha ao abrir detalhes da prova.");
+    } finally {
+      setPerformanceLoading(false);
+    }
+  }
+
   async function confirmCurrentAnswer() {
     if (!attempt || !activeProblemSet) return;
     const question = activeProblemSet.questions[currentQuestionIndex];
@@ -311,6 +382,7 @@ export function StudyWorkspace() {
     setError("");
     try {
       await moveProblemSet(await getToken(), problemSetId, workspaceId);
+      setOpenProblemSetMenuId(null);
       await refresh();
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Falha ao mover prova.");
@@ -490,6 +562,218 @@ export function StudyWorkspace() {
     );
   }
 
+  if (view === "performance" && workspacePerformance) {
+    if (activeProblemSetPerformance) {
+      const detailInsights = problemSetPerformanceInsights(activeProblemSetPerformance);
+      const detailSnapshot = buildProblemSetPerformanceSnapshot(activeProblemSetPerformance);
+      return (
+        <div className="study-board performance-view">
+          <div className="study-board-top performance-top">
+            <button className="icon-button secondary" onClick={() => setActiveProblemSetPerformance(null)} type="button">
+              <ArrowLeft size={18} />
+              Voltar
+            </button>
+            <div>
+              <span className="compact-eyebrow">Desempenho da prova</span>
+              <h1>{activeProblemSetPerformance.fileName}</h1>
+              <p>{activeProblemSetPerformance.description || "Veja seus acertos, erros e temas que pedem revisão."}</p>
+            </div>
+          </div>
+
+          {error && <p className="error-message">{error}</p>}
+          {performanceLoading && <p className="route-state">Carregando desempenho...</p>}
+
+          <PerformanceOutcomePanel
+            correctCount={activeProblemSetPerformance.correctCount}
+            label="Mapa dessa prova"
+            subtitle={detailInsights.headline}
+            title={`${detailInsights.score}% de aproveitamento`}
+            wrongCount={activeProblemSetPerformance.wrongCount}
+          />
+
+          <div className="performance-summary-grid">
+            <PerformanceStat label="Aproveitamento" value={`${Math.round(toNumber(activeProblemSetPerformance.scorePercent))}%`} />
+            <PerformanceStat label="Acertos" tone="correct" value={`${activeProblemSetPerformance.correctCount}`} />
+            <PerformanceStat label="Erros" tone="incorrect" value={`${activeProblemSetPerformance.wrongCount}`} />
+            <PerformanceStat label="Práticas" value={`${activeProblemSetPerformance.attemptCount}`} />
+          </div>
+
+          <PerformanceInsightGrid
+            items={[
+              {
+                icon: <Award size={18} />,
+                label: "Melhor assunto",
+                title: detailInsights.bestSubject?.name ?? "Ainda sem destaque",
+                description: detailInsights.bestSubject
+                  ? `${detailInsights.bestSubject.correctCount} acertos em ${detailInsights.bestSubject.answeredCount} respostas.`
+                  : "Responda mais questões para aparecer seu ponto forte.",
+              },
+              {
+                icon: <Target size={18} />,
+                label: "Revisão primeiro",
+                title: detailInsights.weakestSubject?.name ?? "Sem alerta ainda",
+                description: detailInsights.weakestSubject
+                  ? `${detailInsights.weakestSubject.wrongCount} erros para revisar com calma.`
+                  : "Quando houver erros, o Ratto mostra por onde começar.",
+                tone: "attention",
+              },
+              {
+                icon: <ListChecks size={18} />,
+                label: "Questões respondidas",
+                title: `${activeProblemSetPerformance.answeredCount}/${activeProblemSetPerformance.questionCount}`,
+                description: `${detailSnapshot.answeredQuestionRate}% da prova já tem histórico de prática.`,
+              },
+            ]}
+          />
+
+          <section className="performance-section">
+            <div className="section-title-row">
+              <div>
+                <span className="compact-eyebrow">Assuntos</span>
+                <h2>Leitura por assunto</h2>
+              </div>
+            </div>
+            <BreakdownList items={activeProblemSetPerformance.subjects} empty="Responda questões para ver seu desempenho por assunto." />
+          </section>
+
+          <section className="performance-section">
+            <div className="section-title-row">
+              <div>
+                <span className="compact-eyebrow">Temas</span>
+                <h2>Temas que merecem atenção</h2>
+              </div>
+            </div>
+            <BreakdownList items={activeProblemSetPerformance.themes} empty="Os temas aparecem depois das primeiras respostas." />
+          </section>
+
+          <section className="performance-section">
+            <div className="section-title-row">
+              <div>
+                <span className="compact-eyebrow">Questões</span>
+                <h2>O que revisar depois</h2>
+              </div>
+            </div>
+            <div className="question-performance-list">
+              {detailInsights.questionReviewOrder.map((question) => (
+                <article className="question-performance-card" key={question.questionId}>
+                  <div className="quiz-question-meta">
+                    <strong>{question.subject}</strong>
+                    <span>{question.theme}</span>
+                    <span>{question.difficulty}</span>
+                  </div>
+                  <h3>{question.question}</h3>
+                  <div className="question-performance-counts">
+                    <span className="correct">{question.correctCount} acertos</span>
+                    <span className="incorrect">{question.wrongCount} erros</span>
+                  </div>
+                  {question.lastSelectedAnswer && (
+                    <p><strong>Última resposta:</strong> {question.lastSelectedAnswer}</p>
+                  )}
+                  <p><strong>Resposta correta:</strong> {question.correctAnswer}</p>
+                  <small>{question.explanation}</small>
+                </article>
+              ))}
+            </div>
+          </section>
+        </div>
+      );
+    }
+
+    const workspaceInsights = workspacePerformanceInsights(workspacePerformance);
+    const workspaceSnapshot = buildWorkspacePerformanceSnapshot(workspacePerformance);
+    return (
+      <div className="study-board performance-view">
+        <div className="study-board-top performance-top">
+          <button className="icon-button secondary" onClick={() => setView("overview")} type="button">
+            <ArrowLeft size={18} />
+            Voltar
+          </button>
+          <div>
+            <span className="compact-eyebrow">Desempenho</span>
+            <h1>{selectedWorkspace ? selectedWorkspace.name : "Todas as provas"}</h1>
+            <p>Acompanhe acertos, erros e assuntos de cada PDF praticado.</p>
+          </div>
+        </div>
+
+        {error && <p className="error-message">{error}</p>}
+        {performanceLoading && <p className="route-state">Carregando desempenho...</p>}
+
+        <PerformanceOutcomePanel
+          correctCount={workspacePerformance.correctAnswers}
+          label="Mapa geral"
+          subtitle={workspaceInsights.headline}
+          title={`${workspaceInsights.score}% de aproveitamento`}
+          wrongCount={workspacePerformance.wrongAnswers}
+        />
+
+        <div className="performance-summary-grid">
+          <PerformanceStat label="Aproveitamento" value={`${Math.round(toNumber(workspacePerformance.scorePercent))}%`} />
+          <PerformanceStat label="Acertos" tone="correct" value={`${workspacePerformance.correctAnswers}`} />
+          <PerformanceStat label="Erros" tone="incorrect" value={`${workspacePerformance.wrongAnswers}`} />
+          <PerformanceStat label="Práticas" value={`${workspacePerformance.totalAttempts}`} />
+        </div>
+
+        <PerformanceInsightGrid
+          items={[
+            {
+              icon: <Award size={18} />,
+              label: "Melhor material",
+              title: workspaceInsights.bestProblemSet?.fileName ?? "Ainda sem campeão",
+              description: workspaceInsights.bestProblemSet
+                ? `${Math.round(toNumber(workspaceInsights.bestProblemSet.scorePercent))}% de aproveitamento em ${workspaceInsights.bestProblemSet.answeredCount} respostas.`
+                : "Pratique um PDF para aparecer seu melhor resultado.",
+            },
+            {
+              icon: <Target size={18} />,
+              label: "Revisar primeiro",
+              title: workspaceInsights.weakestProblemSet?.fileName ?? "Sem alerta ainda",
+              description: workspaceInsights.weakestProblemSet
+                ? `${workspaceInsights.weakestProblemSet.wrongCount} erros registrados nesse material.`
+                : "Quando houver erros, os materiais mais importantes aparecem aqui.",
+              tone: "attention",
+            },
+            {
+              icon: <Clock3 size={18} />,
+              label: "Ritmo de prática",
+              title: `${workspaceSnapshot.practicedProblemSets}/${workspacePerformance.totalProblemSets} PDFs praticados`,
+              description: `${workspaceSnapshot.coveragePercent}% dos materiais dessa área já têm respostas registradas.`,
+            },
+          ]}
+        />
+
+        <section className="performance-section">
+          <div className="section-title-row">
+            <div>
+              <span className="compact-eyebrow">
+                <BarChart3 size={14} />
+                PDFs
+              </span>
+              <h2>Materiais para acompanhar</h2>
+            </div>
+          </div>
+
+          {workspacePerformance.problemSets.length === 0 ? (
+            <div className="empty-study-state">
+              <BookOpenCheck size={24} />
+              <strong>Nenhuma prova pronta nessa área</strong>
+              <p>Gere uma prova com PDF para começar a acompanhar sua evolução.</p>
+            </div>
+          ) : (
+            <div className="performance-pdf-list">
+              {workspaceInsights.problemSetsByAttention.map((problemSet) => (
+                <PerformancePdfRow
+                  key={problemSet.problemSetId}
+                  onOpen={() => void openProblemSetPerformance(problemSet.problemSetId)}
+                  problemSet={problemSet}
+                />
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
+    );
+  }
+
   return (
     <div className="study-board student-workspace">
       <div className="study-board-top">
@@ -540,7 +824,10 @@ export function StudyWorkspace() {
         <aside className="folder-rail" id="areas">
           <button
             className={`folder-item ${!selectedWorkspaceId ? "active" : ""}`}
-            onClick={() => setSelectedWorkspaceId(undefined)}
+            onClick={() => {
+              setOpenProblemSetMenuId(null);
+              setSelectedWorkspaceId(undefined);
+            }}
             type="button"
           >
             <Inbox size={18} />
@@ -550,7 +837,13 @@ export function StudyWorkspace() {
 
           {workspaces.map((workspace) => (
             <div className={`folder-item folder-item-row ${workspace.id === selectedWorkspaceId ? "active" : ""}`} key={workspace.id}>
-              <button onClick={() => setSelectedWorkspaceId(workspace.id)} type="button">
+              <button
+                onClick={() => {
+                  setOpenProblemSetMenuId(null);
+                  setSelectedWorkspaceId(workspace.id);
+                }}
+                type="button"
+              >
                 <Folder size={18} />
                 <span>{workspace.name}</span>
               </button>
@@ -570,10 +863,18 @@ export function StudyWorkspace() {
               </span>
               <h2>Provas prontas para praticar</h2>
             </div>
-            <button className="icon-button primary" onClick={() => setView("create")} type="button">
-              <FileUp size={18} />
-              Gerar prova
-            </button>
+            <div className="section-actions">
+              {selectedWorkspaceId && (
+                <button className="icon-button secondary" onClick={() => void openPerformance()} type="button">
+                  <BarChart3 size={18} />
+                  Desempenho
+                </button>
+              )}
+              <button className="icon-button primary" onClick={() => setView("create")} type="button">
+                <FileUp size={18} />
+                Gerar prova
+              </button>
+            </div>
           </div>
 
           {visibleProblemSets.length === 0 && visiblePendingProblemSets.length === 0 && (
@@ -608,44 +909,46 @@ export function StudyWorkspace() {
                 </button>
               </article>
             ))}
-            {visibleProblemSets.map((problemSet) => (
-              <article className="problem-row" key={problemSet.id}>
-                <div className="problem-row-icon">
-                  <BookOpenCheck size={20} />
-                </div>
-                <div className="problem-row-copy">
-                  <strong>{problemSet.originalFileName}</strong>
-                  <span>{problemSet.description || "Prática criada a partir do seu material."}</span>
-                  <small>
-                    <Languages size={14} />
-                    {problemSet.questionCount} questões · {languageLabel(problemSet.studyLanguage)}
-                  </small>
-                </div>
-                <select
-                  aria-label="Mover prova"
-                  onChange={(event) => onMoveSelect(problemSet.id, event.target.value)}
-                  value={problemSet.workspaceId ?? ""}
-                >
-                  <option value="">Sem pasta</option>
-                  {workspaces.map((workspace) => (
-                    <option key={workspace.id} value={workspace.id}>{workspace.name}</option>
-                  ))}
-                </select>
-                <button className="icon-button secondary" onClick={() => openProblemSet(problemSet.id)} type="button">
-                  <Play size={17} />
-                  Praticar
-                </button>
-              </article>
-            ))}
+            {visibleProblemSets.map((problemSet) => {
+              const performance = performanceByProblemSetId.get(problemSet.id);
+              const mastered = performance ? hasPerfectAttempt(performance) : false;
+              return (
+                <article className={`problem-row ${mastered ? "mastered" : ""}`} key={problemSet.id}>
+                  <div className="problem-row-icon">
+                    <BookOpenCheck size={20} />
+                    {mastered && <Star className="mastery-star" fill="currentColor" size={16} />}
+                  </div>
+                  <div className="problem-row-copy">
+                    <strong>
+                      {problemSet.originalFileName}
+                      {mastered && <span className="mastery-label">100%</span>}
+                    </strong>
+                    <span>{problemSet.description || "Prática criada a partir do seu material."}</span>
+                    <small>
+                      <Languages size={14} />
+                      {problemSet.questionCount} questões · {languageLabel(problemSet.studyLanguage)}
+                    </small>
+                    <ProblemSetHoverSummary performance={performance} />
+                  </div>
+                  <ProblemSetActionsMenu
+                    currentWorkspaceId={problemSet.workspaceId ?? null}
+                    isOpen={openProblemSetMenuId === problemSet.id}
+                    onMove={(workspaceId) => void move(problemSet.id, workspaceId)}
+                    onToggle={() => setOpenProblemSetMenuId((current) => current === problemSet.id ? null : problemSet.id)}
+                    workspaces={workspaces}
+                  />
+                  <button className="icon-button secondary" onClick={() => openProblemSet(problemSet.id)} type="button">
+                    <Play size={17} />
+                    Praticar
+                  </button>
+                </article>
+              );
+            })}
           </div>
         </section>
       </div>
     </div>
   );
-
-  function onMoveSelect(problemSetId: string, value: string) {
-    void move(problemSetId, value || null);
-  }
 }
 
 function languageLabel(language: string): string {
@@ -697,4 +1000,400 @@ function processingLabel(status: PendingProblemSet["status"]): string {
   if (status === "GENERATING") return "Gerando";
   if (status === "READING") return "Lendo";
   return "Na fila";
+}
+
+function ProblemSetActionsMenu({
+  currentWorkspaceId,
+  isOpen,
+  onMove,
+  onToggle,
+  workspaces,
+}: Readonly<{
+  currentWorkspaceId: string | null;
+  isOpen: boolean;
+  onMove: (workspaceId: string | null) => void;
+  onToggle: () => void;
+  workspaces: Workspace[];
+}>) {
+  return (
+    <div className="problem-actions-menu">
+      <button
+        aria-expanded={isOpen}
+        aria-label="Opções da prova"
+        className="problem-menu-trigger"
+        onClick={onToggle}
+        type="button"
+      >
+        <MoreHorizontal size={20} />
+      </button>
+      {isOpen && (
+        <div className="problem-menu-popover">
+          <strong>Mover para</strong>
+          <button
+            className={currentWorkspaceId === null ? "active" : ""}
+            onClick={() => onMove(null)}
+            type="button"
+          >
+            Sem pasta
+          </button>
+          {workspaces.map((workspace) => (
+            <button
+              className={currentWorkspaceId === workspace.id ? "active" : ""}
+              key={workspace.id}
+              onClick={() => onMove(workspace.id)}
+              type="button"
+            >
+              {workspace.name}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ProblemSetHoverSummary({ performance }: Readonly<{ performance?: ProblemSetPerformanceSummary }>) {
+  if (!performance) {
+    return (
+      <span className="problem-hover-summary">
+        <strong>Resumo da prática</strong>
+        <small>Carregando desempenho desse material...</small>
+      </span>
+    );
+  }
+  const score = Math.round(toNumber(performance.scorePercent));
+  const lastAttempt = performance.attempts[0];
+  return (
+    <span className="problem-hover-summary">
+      <strong>Resumo da prática</strong>
+      {performance.attemptCount === 0 ? (
+        <small>Ainda sem tentativa. Comece a prática para criar seu histórico.</small>
+      ) : (
+        <>
+          <small>{performance.attemptCount} tentativa{performance.attemptCount === 1 ? "" : "s"} registrada{performance.attemptCount === 1 ? "" : "s"}</small>
+          <small>{score}% de acerto · {performance.correctCount} acertos · {performance.wrongCount} erros</small>
+          {lastAttempt && (
+            <small>Última: {formatAttemptDate(lastAttempt.submittedAt ?? lastAttempt.startedAt)} · {Math.round(toNumber(lastAttempt.scorePercent))}%</small>
+          )}
+        </>
+      )}
+    </span>
+  );
+}
+
+function PerformanceOutcomePanel({
+  correctCount,
+  label,
+  subtitle,
+  title,
+  wrongCount,
+}: Readonly<{ correctCount: number; label: string; subtitle?: string; title?: string; wrongCount: number }>) {
+  const total = correctCount + wrongCount;
+  const percent = percentage(correctCount, total);
+  return (
+    <section className="performance-outcome-panel">
+      <OutcomeDonut correctCount={correctCount} label={label} wrongCount={wrongCount} />
+      <div className="performance-outcome-copy">
+        <span className="compact-eyebrow">{label}</span>
+        <h2>{total === 0 ? "Comece a responder para ver seu mapa" : title ?? `${percent}% de aproveitamento`}</h2>
+        <p>
+          {total === 0
+            ? "Assim que você praticar, seus acertos e erros aparecem aqui para facilitar a revisão."
+            : subtitle ?? `${correctCount} acertos e ${wrongCount} erros em ${total} respostas registradas.`}
+        </p>
+        <div className="performance-legend">
+          <span><i className="correct" /> Acertos</span>
+          <span><i className="incorrect" /> Erros</span>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function PerformanceInsightGrid({
+  items,
+}: Readonly<{
+  items: Array<{
+    description: string;
+    icon: ReactNode;
+    label: string;
+    title: string;
+    tone?: "attention";
+  }>;
+}>) {
+  return (
+    <section className="performance-insight-grid" aria-label="Resumo do desempenho">
+      {items.map((item) => (
+        <article className={`performance-insight-card ${item.tone ?? ""}`} key={`${item.label}-${item.title}`}>
+          <span className="performance-insight-icon">{item.icon}</span>
+          <div>
+            <span>{item.label}</span>
+            <strong>{item.title}</strong>
+            <p>{item.description}</p>
+          </div>
+        </article>
+      ))}
+    </section>
+  );
+}
+
+function PerformancePdfRow({
+  onOpen,
+  problemSet,
+}: Readonly<{ onOpen: () => void; problemSet: ProblemSetPerformanceSummary }>) {
+  const score = Math.round(toNumber(problemSet.scorePercent));
+  const status = performanceStatus(score, problemSet.answeredCount);
+  return (
+    <article className={`performance-pdf-row ${status.tone}`}>
+      <OutcomeDonut
+        correctCount={problemSet.correctCount}
+        label={problemSet.fileName}
+        small
+        wrongCount={problemSet.wrongCount}
+      />
+      <div className="performance-pdf-copy">
+        <div className="performance-pdf-heading">
+          <div>
+            <strong>{problemSet.fileName}</strong>
+            <span>{status.label}</span>
+          </div>
+          <strong>{score}%</strong>
+        </div>
+        <span>
+          {problemSet.attemptCount === 0
+            ? "Ainda sem prática registrada."
+            : (
+              <AttemptHistoryPopover
+                attempts={problemSet.attempts}
+                label={`${problemSet.attemptCount} prática${problemSet.attemptCount === 1 ? "" : "s"} feita${problemSet.attemptCount === 1 ? "" : "s"}`}
+              />
+            )}
+        </span>
+        <div className="performance-mini-grid">
+          <span><strong>{problemSet.correctCount}</strong> acertos</span>
+          <span><strong>{problemSet.wrongCount}</strong> erros</span>
+          <span><strong>{problemSet.answeredCount}</strong> respostas</span>
+          <span><strong>{problemSet.questionCount}</strong> questões</span>
+        </div>
+        <div className="performance-inline-progress" aria-label={`${score}% de aproveitamento em ${problemSet.fileName}`}>
+          <span style={{ width: `${score}%` }} />
+        </div>
+        <small>{problemSet.subjects.length > 0 ? problemSet.subjects.join(" · ") : "Assuntos aparecem após a geração da prova."}</small>
+      </div>
+      <button
+        className="icon-button secondary"
+        onClick={onOpen}
+        type="button"
+      >
+        Ver detalhes
+        <ChevronRight size={17} />
+      </button>
+    </article>
+  );
+}
+
+function OutcomeDonut({
+  correctCount,
+  label,
+  wrongCount,
+  small = false,
+}: Readonly<{ correctCount: number; label: string; wrongCount: number; small?: boolean }>) {
+  const total = correctCount + wrongCount;
+  const percent = percentage(correctCount, total);
+  const style = { "--correct-percent": `${percent}%` } as CSSProperties;
+  return (
+    <div
+      aria-label={`${label}: ${correctCount} acertos, ${wrongCount} erros, ${percent}% de aproveitamento`}
+      className={`performance-donut ${small ? "small" : ""} ${total === 0 ? "empty" : ""}`}
+      style={style}
+      tabIndex={0}
+    >
+      <span>{total === 0 ? "0%" : `${percent}%`}</span>
+      <div className="performance-donut-tooltip" role="tooltip">
+        <strong>{label}</strong>
+        <small>{correctCount} acertos</small>
+        <small>{wrongCount} erros</small>
+        <small>{total} respostas</small>
+      </div>
+    </div>
+  );
+}
+
+function PerformanceStat({ label, tone, value }: Readonly<{ label: string; tone?: "correct" | "incorrect"; value: string }>) {
+  return (
+    <article className={`performance-stat ${tone ?? ""}`}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </article>
+  );
+}
+
+function BreakdownList({ items, empty }: Readonly<{ items: PerformanceBreakdown[]; empty: string }>) {
+  if (items.length === 0) {
+    return <p className="empty-state">{empty}</p>;
+  }
+  return (
+    <div className="performance-breakdown-list">
+      {items.map((item) => (
+        <article className="performance-breakdown-row" key={item.name}>
+          <OutcomeDonut correctCount={item.correctCount} label={item.name} small wrongCount={item.wrongCount} />
+          <div>
+            <strong>{item.name}</strong>
+            <span>{item.answeredCount} respostas</span>
+          </div>
+          <div className="performance-score-pill">{Math.round(toNumber(item.scorePercent))}%</div>
+          <small>{item.correctCount} acertos · {item.wrongCount} erros</small>
+        </article>
+      ))}
+    </div>
+  );
+}
+
+function AttemptHistoryPopover({
+  attempts,
+  label,
+}: Readonly<{ attempts: AttemptPerformanceSummary[]; label: string }>) {
+  return (
+    <span className="attempt-history-trigger" tabIndex={0}>
+      {label}
+      <span className="attempt-history-popover">
+        <strong>Histórico de práticas</strong>
+        {attempts.length === 0 ? (
+          <small>Nenhuma prática registrada.</small>
+        ) : attempts.map((attempt, index) => (
+          <span className="attempt-history-item" key={attempt.attemptId}>
+            <span>
+              <strong>{index + 1}. {formatAttemptDate(attempt.submittedAt ?? attempt.startedAt)}</strong>
+              <small>{attempt.status === "SUBMITTED" ? "Finalizada" : "Em andamento"}</small>
+            </span>
+            <span>
+              {attempt.correctCount}/{attempt.answeredCount} acertos
+              <small>{attempt.wrongCount} erros · {Math.round(toNumber(attempt.scorePercent))}%</small>
+            </span>
+          </span>
+        ))}
+      </span>
+    </span>
+  );
+}
+
+function toNumber(value: string | number | null | undefined): number {
+  const parsed = Number(value ?? 0);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function workspacePerformanceInsights(performance: WorkspacePerformance) {
+  const practicedProblemSets = performance.problemSets.filter((problemSet) => problemSet.answeredCount > 0);
+  const problemSetsByAttention = [...performance.problemSets].sort((left, right) => {
+    if (left.answeredCount === 0 && right.answeredCount > 0) return 1;
+    if (right.answeredCount === 0 && left.answeredCount > 0) return -1;
+    if (right.wrongCount !== left.wrongCount) return right.wrongCount - left.wrongCount;
+    return toNumber(left.scorePercent) - toNumber(right.scorePercent);
+  });
+  const bestProblemSet = [...practicedProblemSets].sort((left, right) =>
+    toNumber(right.scorePercent) - toNumber(left.scorePercent),
+  )[0];
+  const weakestProblemSet = [...practicedProblemSets].sort((left, right) => {
+    if (right.wrongCount !== left.wrongCount) return right.wrongCount - left.wrongCount;
+    return toNumber(left.scorePercent) - toNumber(right.scorePercent);
+  })[0];
+  const score = Math.round(toNumber(performance.scorePercent));
+  return {
+    bestProblemSet,
+    headline: performance.answeredQuestions === 0
+      ? "Quando você praticar, esse espaço vira um mapa simples do que revisar."
+      : `${performance.correctAnswers} acertos, ${performance.wrongAnswers} erros e ${performance.totalAttempts} práticas registradas.`,
+    problemSetsByAttention,
+    score,
+    weakestProblemSet,
+  };
+}
+
+function problemSetPerformanceInsights(performance: ProblemSetPerformance) {
+  const bestSubject = bestBreakdown(performance.subjects);
+  const weakestSubject = weakestBreakdown(performance.subjects);
+  const questionReviewOrder = [...performance.questions].sort((left, right) => {
+    if (right.wrongCount !== left.wrongCount) return right.wrongCount - left.wrongCount;
+    return left.correctCount - right.correctCount;
+  });
+  const score = Math.round(toNumber(performance.scorePercent));
+  return {
+    bestSubject,
+    headline: performance.answeredCount === 0
+      ? "Responda essa prova para enxergar seus pontos fortes e lacunas."
+      : `${performance.correctCount} acertos e ${performance.wrongCount} erros em ${performance.answeredCount} respostas dessa prova.`,
+    questionReviewOrder,
+    score,
+    weakestSubject,
+  };
+}
+
+function bestBreakdown(items: PerformanceBreakdown[]): PerformanceBreakdown | undefined {
+  return items
+    .filter((item) => item.answeredCount > 0)
+    .sort((left, right) => toNumber(right.scorePercent) - toNumber(left.scorePercent))[0];
+}
+
+function weakestBreakdown(items: PerformanceBreakdown[]): PerformanceBreakdown | undefined {
+  return items
+    .filter((item) => item.answeredCount > 0)
+    .sort((left, right) => {
+      if (right.wrongCount !== left.wrongCount) return right.wrongCount - left.wrongCount;
+      return toNumber(left.scorePercent) - toNumber(right.scorePercent);
+    })[0];
+}
+
+function buildWorkspacePerformanceSnapshot(performance: WorkspacePerformance) {
+  const practicedProblemSets = performance.problemSets.filter((problemSet) => problemSet.answeredCount > 0).length;
+  return {
+    coveragePercent: percentage(practicedProblemSets, performance.totalProblemSets),
+    practicedProblemSets,
+    totalAttempts: performance.totalAttempts,
+    totalProblemSets: performance.totalProblemSets,
+  };
+}
+
+function buildProblemSetPerformanceSnapshot(performance: ProblemSetPerformance) {
+  const answeredQuestions = performance.questions.filter((question) =>
+    question.correctCount + question.wrongCount > 0,
+  ).length;
+  return {
+    answeredQuestionRate: percentage(answeredQuestions, performance.questionCount),
+    questionsNeedingReview: performance.questions
+      .filter((question) => question.wrongCount > 0)
+      .map((question) => ({
+        questionId: question.questionId,
+        subject: question.subject,
+        theme: question.theme,
+        wrongCount: question.wrongCount,
+      })),
+  };
+}
+
+function performanceStatus(score: number, answeredCount: number): { label: string; tone: "strong" | "attention" | "quiet" } {
+  if (answeredCount === 0) return { label: "Aguardando primeira prática", tone: "quiet" };
+  if (score >= 80) return { label: "Indo muito bem", tone: "strong" };
+  if (score >= 50) return { label: "Em construção", tone: "quiet" };
+  return { label: "Pede revisão", tone: "attention" };
+}
+
+function hasPerfectAttempt(problemSet: ProblemSetPerformanceSummary): boolean {
+  return problemSet.attempts.some((attempt) =>
+    attempt.answeredCount === problemSet.questionCount
+    && attempt.correctCount === problemSet.questionCount,
+  );
+}
+
+function percentage(value: number, total: number): number {
+  if (total <= 0) return 0;
+  return Math.round((value / total) * 100);
+}
+
+function formatAttemptDate(value: string): string {
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    month: "2-digit",
+  }).format(new Date(value));
 }

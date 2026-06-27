@@ -20,8 +20,10 @@ import com.learnia.core.study.api.dtos.StudyDtos.AnswerAttemptQuestionResponse;
 import com.learnia.core.study.api.dtos.StudyDtos.AttemptResponse;
 import com.learnia.core.study.api.dtos.StudyDtos.MoveProblemSetRequest;
 import com.learnia.core.study.api.dtos.StudyDtos.ProblemSetDetailResponse;
+import com.learnia.core.study.api.dtos.StudyDtos.ProblemSetPerformanceResponse;
 import com.learnia.core.study.api.dtos.StudyDtos.ProblemSetSummaryResponse;
 import com.learnia.core.study.api.dtos.StudyDtos.SubmitAttemptRequest;
+import com.learnia.core.study.api.dtos.StudyDtos.WorkspacePerformanceResponse;
 import com.learnia.core.study.api.dtos.WorkspaceDtos.WorkspaceRequest;
 import com.learnia.core.study.api.dtos.WorkspaceDtos.WorkspaceResponse;
 import com.learnia.core.study.services.StudyService;
@@ -81,6 +83,20 @@ public class StudyController {
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable UUID problemSetId) {
         return studyService.getProblemSet(userId(jwt), problemSetId);
+    }
+
+    @GetMapping("/performance")
+    public WorkspacePerformanceResponse getWorkspacePerformance(
+            @AuthenticationPrincipal Jwt jwt,
+            @RequestParam(required = false) UUID workspaceId) {
+        return studyService.getWorkspacePerformance(userId(jwt), workspaceId);
+    }
+
+    @GetMapping("/problem-sets/{problemSetId}/performance")
+    public ProblemSetPerformanceResponse getProblemSetPerformance(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable UUID problemSetId) {
+        return studyService.getProblemSetPerformance(userId(jwt), problemSetId);
     }
 
     @PostMapping("/problem-sets/{problemSetId}/attempts")

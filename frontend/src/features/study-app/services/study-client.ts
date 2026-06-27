@@ -1,9 +1,11 @@
 import type {
   AnswerAttemptQuestionResponse,
   Attempt,
+  ProblemSetPerformance,
   ProblemSetDetail,
   ProblemSetSummary,
   ProcessingStatusResponse,
+  WorkspacePerformance,
   Workspace,
 } from "@/features/study-app/models/study.models";
 
@@ -41,6 +43,17 @@ export async function moveProblemSet(token: string, id: string, workspaceId: str
 
 export async function getProblemSet(token: string, id: string): Promise<ProblemSetDetail> {
   return studyRequest<ProblemSetDetail>(`/api/study/problem-sets/${id}`, { method: "GET" }, token);
+}
+
+export async function getWorkspacePerformance(token: string, workspaceId?: string): Promise<WorkspacePerformance> {
+  const search = new URLSearchParams();
+  if (workspaceId) search.set("workspaceId", workspaceId);
+  const query = search.toString();
+  return studyRequest<WorkspacePerformance>(`/api/study/performance${query ? `?${query}` : ""}`, { method: "GET" }, token);
+}
+
+export async function getProblemSetPerformance(token: string, id: string): Promise<ProblemSetPerformance> {
+  return studyRequest<ProblemSetPerformance>(`/api/study/problem-sets/${id}/performance`, { method: "GET" }, token);
 }
 
 export async function startAttempt(token: string, problemSetId: string): Promise<Attempt> {

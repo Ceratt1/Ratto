@@ -1,8 +1,11 @@
 package com.learnia.core.study.services.impl;
 
+import java.math.BigDecimal;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -17,12 +20,18 @@ import com.learnia.core.study.api.dtos.StudyDtos.AnswerResponse;
 import com.learnia.core.study.api.dtos.StudyDtos.AnswerAttemptQuestionRequest;
 import com.learnia.core.study.api.dtos.StudyDtos.AnswerAttemptQuestionResponse;
 import com.learnia.core.study.api.dtos.StudyDtos.AttemptAnswerResponse;
+import com.learnia.core.study.api.dtos.StudyDtos.AttemptPerformanceSummaryResponse;
 import com.learnia.core.study.api.dtos.StudyDtos.AttemptResponse;
 import com.learnia.core.study.api.dtos.StudyDtos.MoveProblemSetRequest;
+import com.learnia.core.study.api.dtos.StudyDtos.PerformanceBreakdownResponse;
 import com.learnia.core.study.api.dtos.StudyDtos.ProblemSetDetailResponse;
+import com.learnia.core.study.api.dtos.StudyDtos.ProblemSetPerformanceResponse;
+import com.learnia.core.study.api.dtos.StudyDtos.ProblemSetPerformanceSummaryResponse;
 import com.learnia.core.study.api.dtos.StudyDtos.ProblemSetSummaryResponse;
+import com.learnia.core.study.api.dtos.StudyDtos.QuestionPerformanceResponse;
 import com.learnia.core.study.api.dtos.StudyDtos.QuestionResponse;
 import com.learnia.core.study.api.dtos.StudyDtos.SubmitAttemptRequest;
+import com.learnia.core.study.api.dtos.StudyDtos.WorkspacePerformanceResponse;
 import com.learnia.core.study.api.dtos.WorkspaceDtos.WorkspaceRequest;
 import com.learnia.core.study.api.dtos.WorkspaceDtos.WorkspaceResponse;
 import com.learnia.core.study.repositories.JpaStudyAttemptRepository;
@@ -121,6 +130,43 @@ public class StudyServiceImpl implements com.learnia.core.study.services.StudySe
     public ProblemSetDetailResponse getProblemSet(UUID userId, UUID problemSetId) {
         return toProblemSetDetail(problemSetRepository.findWithQuestionsByIdAndUserId(problemSetId, userId)
                 .orElseThrow(() -> new IllegalArgumentException("Prova não encontrada.")), false);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public WorkspacePerformanceResponse getWorkspacePerformance(UUID userId, UUID workspaceId) {
+        List<StudyProblemSetEntity> problemSets = workspaceId == null
+                ? problemSetRepository.findByUserIdOrderByCreatedAtDesc(userId)
+                : problemSetRepository.findByUserIdAndWorkspace_IdOrderByCreatedAtDesc(userId, workspaceId);
+        Map<UUID, List<StudyAttemptEntity>> attemptsByProblemSet = attemptsByProblemSet(userId, problemSets);
+        List<ProblemSetPerformanceSummaryResponse> summaries = problemSets.stream()
+                .map(problemSet -> toProblemSetPerformanceSummary(
+                        problemSet,
+                        attemptsByProblemSet.getOrDefault(problemSet.getId(), List.of())))
+                .toList();
+        int totalAttempts = summaries.stream().mapToInt(ProblemSetPerformanceSummaryResponse::attemptCount).sum();
+        int answeredQuestions = summaries.stream().mapToInt(ProblemSetPerformanceSummaryResponse::answeredCount).sum();
+        int correctAnswers = summaries.stream().mapToInt(ProblemSetPerformanceSummaryResponse::correctCount).sum();
+        int wrongAnswers = summaries.stream().mapToInt(ProblemSetPerformanceSummaryResponse::wrongCount).sum();
+        return new WorkspacePerformanceResponse(
+                problemSets.size(),
+                totalAttempts,
+                answeredQuestions,
+                correctAnswers,
+                wrongAnswers,
+                scorePercent(correctAnswers, answeredQuestions),
+                summaries);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ProblemSetPerformanceResponse getProblemSetPerformance(UUID userId, UUID problemSetId) {
+        StudyProblemSetEntity problemSet = problemSetRepository.findWithQuestionsByIdAndUserId(problemSetId, userId)
+                .orElseThrow(() -> new IllegalArgumentException("Prova não encontrada."));
+        List<StudyAttemptEntity> attempts = attemptRepository.findWithAnswersByUserIdAndProblemSetIds(
+                userId,
+                List.of(problemSetId));
+        return toProblemSetPerformance(problemSet, attempts);
     }
 
     @Override
@@ -238,15 +284,175 @@ public class StudyServiceImpl implements com.learnia.core.study.services.StudySe
                     problem.theme(),
                     problem.difficulty(),
                     problem.generalExplanation());
-            List<StudyAnswer> shuffledAnswers = new ArrayList<>(problem.answers());
-            Collections.shuffle(shuffledAnswers, new Random(answerShuffleSeed(event.fileUuid(), i)));
-            for (int j = 0; j < shuffledAnswers.size(); j++) {
-                var answer = shuffledAnswers.get(j);
+            List<StudyAnswer> orderedAnswers = orderedAnswersForQuestion(problem.answers(), event.fileUuid(), i);
+            for (int j = 0; j < orderedAnswers.size(); j++) {
+                var answer = orderedAnswers.get(j);
                 question.addAnswer(new StudyAnswerEntity(j + 1, answer.answer(), answer.correct(), answer.explanation()));
             }
             entity.addQuestion(question);
         }
         problemSetRepository.save(entity);
+    }
+
+    private Map<UUID, List<StudyAttemptEntity>> attemptsByProblemSet(
+            UUID userId,
+            List<StudyProblemSetEntity> problemSets) {
+        if (problemSets.isEmpty()) {
+            return Map.of();
+        }
+        List<UUID> problemSetIds = problemSets.stream().map(StudyProblemSetEntity::getId).toList();
+        return attemptRepository.findWithAnswersByUserIdAndProblemSetIds(userId, problemSetIds).stream()
+                .collect(Collectors.groupingBy(attempt -> attempt.getProblemSet().getId()));
+    }
+
+    private ProblemSetPerformanceSummaryResponse toProblemSetPerformanceSummary(
+            StudyProblemSetEntity problemSet,
+            List<StudyAttemptEntity> attempts) {
+        PerformanceTotals totals = totals(attempts);
+        return new ProblemSetPerformanceSummaryResponse(
+                problemSet.getId(),
+                problemSet.getOriginalFileName(),
+                attempts.size(),
+                problemSet.getQuestions().size(),
+                totals.answeredCount(),
+                totals.correctCount(),
+                totals.wrongCount(),
+                scorePercent(totals.correctCount(), totals.answeredCount()),
+                attemptSummaries(attempts),
+                topSubjects(problemSet));
+    }
+
+    private ProblemSetPerformanceResponse toProblemSetPerformance(
+            StudyProblemSetEntity problemSet,
+            List<StudyAttemptEntity> attempts) {
+        PerformanceTotals totals = totals(attempts);
+        List<StudyAttemptAnswerEntity> attemptAnswers = attempts.stream()
+                .flatMap(attempt -> attempt.getAnswers().stream())
+                .toList();
+        return new ProblemSetPerformanceResponse(
+                problemSet.getId(),
+                problemSet.getOriginalFileName(),
+                problemSet.getDescription(),
+                problemSet.getDocumentSummary(),
+                attempts.size(),
+                problemSet.getQuestions().size(),
+                totals.answeredCount(),
+                totals.correctCount(),
+                totals.wrongCount(),
+                scorePercent(totals.correctCount(), totals.answeredCount()),
+                breakdown(attemptAnswers, answer -> answer.getQuestion().getSubject()),
+                breakdown(attemptAnswers, answer -> answer.getQuestion().getTheme()),
+                questionPerformance(problemSet, attempts));
+    }
+
+    private List<String> topSubjects(StudyProblemSetEntity problemSet) {
+        return problemSet.getQuestions().stream()
+                .map(StudyQuestionEntity::getSubject)
+                .distinct()
+                .limit(3)
+                .toList();
+    }
+
+    private PerformanceTotals totals(List<StudyAttemptEntity> attempts) {
+        int answeredCount = attempts.stream().mapToInt(attempt -> attempt.getAnswers().size()).sum();
+        int correctCount = (int) attempts.stream()
+                .flatMap(attempt -> attempt.getAnswers().stream())
+                .filter(StudyAttemptAnswerEntity::isCorrect)
+                .count();
+        return new PerformanceTotals(answeredCount, correctCount, answeredCount - correctCount);
+    }
+
+    private List<AttemptPerformanceSummaryResponse> attemptSummaries(List<StudyAttemptEntity> attempts) {
+        return attempts.stream()
+                .sorted(Comparator.comparing(this::attemptTime).reversed())
+                .map(attempt -> {
+                    int answeredCount = attempt.getAnswers().size();
+                    int correctCount = (int) attempt.getAnswers().stream()
+                            .filter(StudyAttemptAnswerEntity::isCorrect)
+                            .count();
+                    int wrongCount = answeredCount - correctCount;
+                    return new AttemptPerformanceSummaryResponse(
+                            attempt.getId(),
+                            attempt.getStartedAt(),
+                            attempt.getSubmittedAt(),
+                            answeredCount,
+                            correctCount,
+                            wrongCount,
+                            scorePercent(correctCount, answeredCount),
+                            attempt.getStatus());
+                })
+                .toList();
+    }
+
+    private List<PerformanceBreakdownResponse> breakdown(
+            List<StudyAttemptAnswerEntity> attemptAnswers,
+            Function<StudyAttemptAnswerEntity, String> classifier) {
+        Map<String, List<StudyAttemptAnswerEntity>> grouped = attemptAnswers.stream()
+                .collect(Collectors.groupingBy(classifier, LinkedHashMap::new, Collectors.toList()));
+        return grouped.entrySet().stream()
+                .map(entry -> {
+                    int answeredCount = entry.getValue().size();
+                    int correctCount = (int) entry.getValue().stream().filter(StudyAttemptAnswerEntity::isCorrect).count();
+                    int wrongCount = answeredCount - correctCount;
+                    return new PerformanceBreakdownResponse(
+                            entry.getKey(),
+                            answeredCount,
+                            correctCount,
+                            wrongCount,
+                            scorePercent(correctCount, answeredCount));
+                })
+                .sorted(Comparator.comparing(PerformanceBreakdownResponse::answeredCount).reversed())
+                .toList();
+    }
+
+    private List<QuestionPerformanceResponse> questionPerformance(
+            StudyProblemSetEntity problemSet,
+            List<StudyAttemptEntity> attempts) {
+        Map<UUID, List<AnswerWithAttempt>> answersByQuestion = attempts.stream()
+                .flatMap(attempt -> attempt.getAnswers().stream()
+                        .map(answer -> new AnswerWithAttempt(answer, attempt)))
+                .collect(Collectors.groupingBy(item -> item.answer().getQuestion().getId()));
+        return problemSet.getQuestions().stream()
+                .map(question -> toQuestionPerformance(question, answersByQuestion.getOrDefault(question.getId(), List.of())))
+                .toList();
+    }
+
+    private QuestionPerformanceResponse toQuestionPerformance(
+            StudyQuestionEntity question,
+            List<AnswerWithAttempt> answers) {
+        int correctCount = (int) answers.stream().filter(item -> item.answer().isCorrect()).count();
+        int wrongCount = answers.size() - correctCount;
+        StudyAnswerEntity correctAnswer = question.getAnswers().stream()
+                .filter(StudyAnswerEntity::isCorrect)
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Questão sem alternativa correta."));
+        StudyAttemptAnswerEntity lastAnswer = answers.stream()
+                .max(Comparator.comparing(item -> attemptTime(item.attempt())))
+                .map(AnswerWithAttempt::answer)
+                .orElse(null);
+        return new QuestionPerformanceResponse(
+                question.getId(),
+                question.getQuestion(),
+                question.getSubject(),
+                question.getTheme(),
+                question.getDifficulty(),
+                correctCount,
+                wrongCount,
+                lastAnswer == null ? null : lastAnswer.getSelectedAnswer().getId(),
+                lastAnswer == null ? null : lastAnswer.getSelectedAnswer().getAnswer(),
+                correctAnswer.getId(),
+                correctAnswer.getAnswer(),
+                correctAnswer.getExplanation());
+    }
+
+    private OffsetDateTime attemptTime(StudyAttemptEntity attempt) {
+        return attempt.getSubmittedAt() == null ? attempt.getStartedAt() : attempt.getSubmittedAt();
+    }
+
+    private BigDecimal scorePercent(int correctCount, int answeredCount) {
+        return answeredCount == 0
+                ? BigDecimal.ZERO
+                : BigDecimal.valueOf(correctCount * 10000L / answeredCount, 2);
     }
 
     private StudyProblemSet downloadProblemSet(StudyProblemsGeneratedEvent event) {
@@ -347,9 +553,40 @@ public class StudyServiceImpl implements com.learnia.core.study.services.StudySe
         return value == null || value.isBlank() ? null : value.trim();
     }
 
+    private List<StudyAnswer> orderedAnswersForQuestion(List<StudyAnswer> answers, UUID fileUuid, int questionIndex) {
+        List<StudyAnswer> correctAnswers = answers.stream().filter(StudyAnswer::correct).toList();
+        if (correctAnswers.size() != 1) {
+            throw new IllegalArgumentException("Questão sem alternativa correta única.");
+        }
+        List<StudyAnswer> incorrectAnswers = new ArrayList<>(answers.stream()
+                .filter(answer -> !answer.correct())
+                .toList());
+        Collections.shuffle(incorrectAnswers, new Random(answerShuffleSeed(fileUuid, questionIndex)));
+
+        int correctPosition = balancedCorrectPosition(fileUuid, questionIndex, answers.size());
+        List<StudyAnswer> orderedAnswers = new ArrayList<>(incorrectAnswers);
+        orderedAnswers.add(correctPosition, correctAnswers.getFirst());
+        return orderedAnswers;
+    }
+
+    private int balancedCorrectPosition(UUID fileUuid, int questionIndex, int answerCount) {
+        List<Integer> positions = new ArrayList<>();
+        for (int i = 0; i < answerCount; i++) {
+            positions.add(i);
+        }
+        Collections.shuffle(positions, new Random(answerShuffleSeed(fileUuid, questionIndex / answerCount)));
+        return positions.get(questionIndex % answerCount);
+    }
+
     private long answerShuffleSeed(UUID fileUuid, int questionIndex) {
         return (fileUuid.getMostSignificantBits() * 31)
                 ^ fileUuid.getLeastSignificantBits()
                 ^ questionIndex;
+    }
+
+    private record PerformanceTotals(int answeredCount, int correctCount, int wrongCount) {
+    }
+
+    private record AnswerWithAttempt(StudyAttemptAnswerEntity answer, StudyAttemptEntity attempt) {
     }
 }

@@ -23,6 +23,79 @@ export interface ProblemSetDetail extends ProblemSetSummary {
   questions: StudyQuestion[];
 }
 
+export interface WorkspacePerformance {
+  totalProblemSets: number;
+  totalAttempts: number;
+  answeredQuestions: number;
+  correctAnswers: number;
+  wrongAnswers: number;
+  scorePercent: string | number;
+  problemSets: ProblemSetPerformanceSummary[];
+}
+
+export interface ProblemSetPerformanceSummary {
+  problemSetId: string;
+  fileName: string;
+  attemptCount: number;
+  questionCount: number;
+  answeredCount: number;
+  correctCount: number;
+  wrongCount: number;
+  scorePercent: string | number;
+  attempts: AttemptPerformanceSummary[];
+  subjects: string[];
+}
+
+export interface AttemptPerformanceSummary {
+  attemptId: string;
+  startedAt: string;
+  submittedAt?: string | null;
+  answeredCount: number;
+  correctCount: number;
+  wrongCount: number;
+  scorePercent: string | number;
+  status: "IN_PROGRESS" | "SUBMITTED";
+}
+
+export interface ProblemSetPerformance {
+  problemSetId: string;
+  fileName: string;
+  description?: string | null;
+  documentSummary: string;
+  attemptCount: number;
+  questionCount: number;
+  answeredCount: number;
+  correctCount: number;
+  wrongCount: number;
+  scorePercent: string | number;
+  subjects: PerformanceBreakdown[];
+  themes: PerformanceBreakdown[];
+  questions: QuestionPerformance[];
+}
+
+export interface PerformanceBreakdown {
+  name: string;
+  answeredCount: number;
+  correctCount: number;
+  wrongCount: number;
+  scorePercent: string | number;
+}
+
+export interface QuestionPerformance {
+  questionId: string;
+  question: string;
+  subject: string;
+  theme: string;
+  difficulty: string;
+  correctCount: number;
+  wrongCount: number;
+  lastSelectedAnswerId?: string | null;
+  lastSelectedAnswer?: string | null;
+  correctAnswerId: string;
+  correctAnswer: string;
+  explanation: string;
+}
+
 export interface StudyQuestion {
   id: string;
   position: number;

@@ -39,6 +39,79 @@ public final class StudyDtos {
             OffsetDateTime createdAt) {
     }
 
+    public record WorkspacePerformanceResponse(
+            int totalProblemSets,
+            int totalAttempts,
+            int answeredQuestions,
+            int correctAnswers,
+            int wrongAnswers,
+            BigDecimal scorePercent,
+            List<ProblemSetPerformanceSummaryResponse> problemSets) {
+    }
+
+    public record ProblemSetPerformanceSummaryResponse(
+            UUID problemSetId,
+            String fileName,
+            int attemptCount,
+            int questionCount,
+            int answeredCount,
+            int correctCount,
+            int wrongCount,
+            BigDecimal scorePercent,
+            List<AttemptPerformanceSummaryResponse> attempts,
+            List<String> subjects) {
+    }
+
+    public record AttemptPerformanceSummaryResponse(
+            UUID attemptId,
+            OffsetDateTime startedAt,
+            OffsetDateTime submittedAt,
+            int answeredCount,
+            int correctCount,
+            int wrongCount,
+            BigDecimal scorePercent,
+            String status) {
+    }
+
+    public record ProblemSetPerformanceResponse(
+            UUID problemSetId,
+            String fileName,
+            String description,
+            String documentSummary,
+            int attemptCount,
+            int questionCount,
+            int answeredCount,
+            int correctCount,
+            int wrongCount,
+            BigDecimal scorePercent,
+            List<PerformanceBreakdownResponse> subjects,
+            List<PerformanceBreakdownResponse> themes,
+            List<QuestionPerformanceResponse> questions) {
+    }
+
+    public record PerformanceBreakdownResponse(
+            String name,
+            int answeredCount,
+            int correctCount,
+            int wrongCount,
+            BigDecimal scorePercent) {
+    }
+
+    public record QuestionPerformanceResponse(
+            UUID questionId,
+            String question,
+            String subject,
+            String theme,
+            String difficulty,
+            int correctCount,
+            int wrongCount,
+            UUID lastSelectedAnswerId,
+            String lastSelectedAnswer,
+            UUID correctAnswerId,
+            String correctAnswer,
+            String explanation) {
+    }
+
     public record QuestionResponse(
             UUID id,
             int position,
