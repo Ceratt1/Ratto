@@ -24,7 +24,8 @@ client_id=$("$KCADM" get clients -r ratto -q clientId=ratto-frontend --fields id
 
 "$KCADM" update "clients/$client_id" -r ratto \
   -s "redirectUris=[\"$PUBLIC_URL/*\"]" \
-  -s "webOrigins=[\"$PUBLIC_URL\"]"
+  -s "webOrigins=[\"$PUBLIC_URL\"]" \
+  -s 'attributes={}'
 
 mapper_id=$("$KCADM" get "clients/$client_id/protocol-mappers/models" -r ratto \
   --fields id,name --format csv --noquotes |
@@ -100,6 +101,8 @@ ensure_user lbica2006 leonardourbim@gmail.com Leonardo "urbim bica" admin
 ensure_user gberto2003 gabrielberto@gmail.com Gabriel "Rebelato Bertoletti" user
 ensure_user gonofrio2003 gorzabonfire8@gmail.com Gabriel "Cabrebra Onofrio" user
 ensure_user lmaya2003 lucasmaya@gmail.com Lucas "Landel Maya" user
+ensure_user lmaya2003 lucasmaya@gmail.com Lucas "Landel Maya" user
+ensure_user ncericatto2006 nathy@gmail.com Nathalia "Cericatto" user
 
 provider_exists() {
   alias=$1

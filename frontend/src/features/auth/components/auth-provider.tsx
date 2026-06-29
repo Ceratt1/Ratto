@@ -31,7 +31,7 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
       if (!configResponse.ok) throw new Error("Não foi possível carregar a configuração de autenticação.");
       const client = new Keycloak((await configResponse.json()) as AuthRuntimeConfig);
       setKeycloak(client);
-      const loggedIn = await client.init({ onLoad: "login-required", checkLoginIframe: false });
+      const loggedIn = await client.init({ onLoad: "login-required", checkLoginIframe: false, pkceMethod: false });
       if (!active) return;
       setAuthenticated(loggedIn);
       setInitialized(true);
