@@ -103,6 +103,7 @@ ensure_user gonofrio2003 gorzabonfire8@gmail.com Gabriel "Cabrebra Onofrio" user
 ensure_user lmaya2003 lucasmaya@gmail.com Lucas "Landel Maya" user
 ensure_user lmaya2003 lucasmaya@gmail.com Lucas "Landel Maya" user
 ensure_user ncericatto2006 nathy@gmail.com Nathalia "Cericatto" user
+ensure_user rarthur2006 renearthur000@gmail.com Rene "Arthur" user
 
 provider_exists() {
   alias=$1
