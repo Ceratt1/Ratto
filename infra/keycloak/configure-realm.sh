@@ -3,6 +3,7 @@ set -eu
 
 KCADM=/opt/keycloak/bin/kcadm.sh
 SERVER=http://keycloak:8080
+PUBLIC_URL=${GATEWAY_PUBLIC_URL:-${KEYCLOAK_PUBLIC_URL:-http://localhost:3000}}
 
 until "$KCADM" config credentials \
   --server "$SERVER" \
@@ -22,8 +23,8 @@ client_id=$("$KCADM" get clients -r ratto -q clientId=ratto-frontend --fields id
   -s 'supportedLocales=["pt-BR","en"]'
 
 "$KCADM" update "clients/$client_id" -r ratto \
-  -s 'redirectUris=["http://localhost:3000/*"]' \
-  -s 'webOrigins=["http://localhost:3000"]'
+  -s "redirectUris=[\"$PUBLIC_URL/*\"]" \
+  -s "webOrigins=[\"$PUBLIC_URL\"]"
 
 mapper_id=$("$KCADM" get "clients/$client_id/protocol-mappers/models" -r ratto \
   --fields id,name --format csv --noquotes |
