@@ -1,0 +1,31 @@
+# Copy this file to terraform.tfvars and change the values before applying.
+
+aws_region        = "us-east-1"
+availability_zone = "us-east-1a"
+
+# 16 GB RAM is a better fit for the current docker-compose.yml.
+instance_type       = "t3a.xlarge"
+root_volume_size_gb = 100
+
+# Prefer a /32 with your current IP.
+# Example: ["203.0.113.10/32"]
+ssh_allowed_cidrs = []
+
+# For a quick public test, 0.0.0.0/0 works. Prefer your own /32 when possible.
+app_allowed_cidrs = ["0.0.0.0/0"]
+
+# Use either an existing EC2 key pair name:
+# existing_key_pair_name = "my-key-pair"
+
+# Or create a key pair from your public key:
+# ssh_public_key = "ssh-ed25519 AAAA... you@example"
+
+# Leave null to generate a unique private bucket name.
+app_bucket_name = null
+
+# For disposable tests, true makes teardown easier.
+force_destroy_app_bucket = false
+
+# Optional AWS Budget alert for this account/month.
+budget_limit_usd   = 25
+budget_alert_email = null
