@@ -17,6 +17,29 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+type BrowserCryptoWithOptionalUuid = Omit<Crypto, "randomUUID"> & {
+  randomUUID?: () => string;
+};
+
+function ensureRandomUuid() {
+  if (typeof window === "undefined") return;
+
+  const browserCrypto = window.crypto as BrowserCryptoWithOptionalUuid;
+  if (typeof browserCrypto.randomUUID === "function") return;
+
+  Object.defineProperty(browserCrypto, "randomUUID", {
+    configurable: true,
+    value: () => {
+      const bytes = new Uint8Array(16);
+      browserCrypto.getRandomValues(bytes);
+      bytes[6] = (bytes[6] & 0x0f) | 0x40;
+      bytes[8] = (bytes[8] & 0x3f) | 0x80;
+      const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0"));
+      return `${hex.slice(0, 4).join("")}-${hex.slice(4, 6).join("")}-${hex.slice(6, 8).join("")}-${hex.slice(8, 10).join("")}-${hex.slice(10).join("")}`;
+    },
+  });
+}
+
 export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
   const [keycloak, setKeycloak] = useState<Keycloak | null>(null);
   const [initialized, setInitialized] = useState(false);
@@ -27,18 +50,20 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
   useEffect(() => {
     let active = true;
     async function initialize() {
+      ensureRandomUuid();
       const configResponse = await fetch("/api/auth/config", { cache: "no-store" });
       if (!configResponse.ok) throw new Error("Não foi possível carregar a configuração de autenticação.");
       const client = new Keycloak((await configResponse.json()) as AuthRuntimeConfig);
       setKeycloak(client);
-      const loggedIn = await client.init({ onLoad: "check-sso", checkLoginIframe: false, pkceMethod: false });
+      const loggedIn = await client.init({
+        onLoad: "login-required",
+        checkLoginIframe: false,
+        pkceMethod: false,
+        responseMode: "query",
+      });
       if (!active) return;
       setAuthenticated(loggedIn);
       setInitialized(true);
-      if (!loggedIn) {
-        await client.login({ redirectUri: `${window.location.origin}/app` });
-        return;
-      }
       if (loggedIn && client.token) {
         const response = await fetch("/api/users/me", {
           method: "PUT",

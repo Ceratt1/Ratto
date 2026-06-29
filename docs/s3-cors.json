@@ -3,7 +3,7 @@
     {
       "AllowedHeaders": ["*"],
       "AllowedMethods": ["PUT"],
-      "AllowedOrigins": ["http://localhost:3000", "http://127.0.0.1:3000"],
+      "AllowedOrigins": ["http://localhost:3000", "http://127.0.0.1:3000", "http://98.83.100.151:3000"],
       "ExposeHeaders": ["ETag"],
       "MaxAgeSeconds": 3600
     }
