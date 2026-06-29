@@ -22,6 +22,7 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
   const [initialized, setInitialized] = useState(false);
   const [authenticated, setAuthenticated] = useState(false);
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [authError, setAuthError] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -29,9 +30,9 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
       const configResponse = await fetch("/api/auth/config", { cache: "no-store" });
       if (!configResponse.ok) throw new Error("Não foi possível carregar a configuração de autenticação.");
       const client = new Keycloak((await configResponse.json()) as AuthRuntimeConfig);
+      setKeycloak(client);
       const loggedIn = await client.init({ onLoad: "login-required", checkLoginIframe: false });
       if (!active) return;
-      setKeycloak(client);
       setAuthenticated(loggedIn);
       setInitialized(true);
       if (loggedIn && client.token) {
@@ -44,7 +45,10 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
     }
     initialize().catch((error) => {
       console.error("Could not initialize authentication", error);
-      if (active) setInitialized(true);
+      if (active) {
+        setAuthError(true);
+        setInitialized(true);
+      }
     });
     return () => { active = false; };
   }, []);
@@ -65,13 +69,27 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
     logout: () => void keycloak?.logout({ redirectUri: window.location.origin }),
   }), [authenticated, getToken, initialized, keycloak, profile]);
 
-  if (!initialized || !authenticated) {
+  if (!initialized) {
     return (
       <div className="auth-loading" role="status">
         <div className="auth-loading-mark">
           <Image src="/logo-ratto.png" alt="Ratto" width={72} height={72} priority />
         </div>
         <span>Preparando sua área Ratto...</span>
+      </div>
+    );
+  }
+
+  if (!authenticated) {
+    return (
+      <div className="auth-loading" role="status">
+        <div className="auth-loading-mark">
+          <Image src="/logo-ratto.png" alt="Ratto" width={72} height={72} priority />
+        </div>
+        <span>{authError ? "Não foi possível abrir o login automaticamente." : "Preparando sua área Ratto..."}</span>
+        <button className="button" onClick={() => { void keycloak?.login({ redirectUri: `${window.location.origin}/app` }); }} type="button">
+          Entrar
+        </button>
       </div>
     );
   }
