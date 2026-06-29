@@ -3,8 +3,17 @@
 FROM maven:3.9.12-eclipse-temurin-21-alpine AS build
 WORKDIR /workspace
 
+COPY generics/pom.xml generics/pom.xml
+RUN --mount=type=cache,target=/root/.m2 \
+    mvn -f generics/pom.xml dependency:go-offline
+
+COPY generics/src generics/src
+RUN --mount=type=cache,target=/root/.m2 \
+    mvn -f generics/pom.xml install -DskipTests
+
 COPY core-service/pom.xml core-service/pom.xml
-RUN --mount=type=cache,target=/root/.m2 mvn -f core-service/pom.xml dependency:go-offline
+RUN --mount=type=cache,target=/root/.m2 \
+    mvn -f core-service/pom.xml dependency:go-offline
 
 COPY core-service/src core-service/src
 RUN --mount=type=cache,target=/root/.m2 \
