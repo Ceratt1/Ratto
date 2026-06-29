@@ -14,7 +14,7 @@ export function LandingAuthActions() {
       const response = await fetch("/api/auth/config", { cache: "no-store" });
       if (!response.ok) return;
       const client = new Keycloak((await response.json()) as AuthRuntimeConfig);
-      await client.init({ onLoad: "check-sso", checkLoginIframe: false, pkceMethod: "S256" });
+      await client.init({ onLoad: "check-sso", checkLoginIframe: false });
       if (active) setKeycloak(client);
     }
     initialize().catch((error) => console.error("Could not initialize landing authentication", error));

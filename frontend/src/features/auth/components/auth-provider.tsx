@@ -29,7 +29,7 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
       const configResponse = await fetch("/api/auth/config", { cache: "no-store" });
       if (!configResponse.ok) throw new Error("Não foi possível carregar a configuração de autenticação.");
       const client = new Keycloak((await configResponse.json()) as AuthRuntimeConfig);
-      const loggedIn = await client.init({ onLoad: "login-required", pkceMethod: "S256", checkLoginIframe: false });
+      const loggedIn = await client.init({ onLoad: "login-required", checkLoginIframe: false });
       if (!active) return;
       setKeycloak(client);
       setAuthenticated(loggedIn);
