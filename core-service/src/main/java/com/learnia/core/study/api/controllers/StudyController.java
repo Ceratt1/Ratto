@@ -19,6 +19,7 @@ import com.learnia.core.study.api.dtos.StudyDtos.AnswerAttemptQuestionRequest;
 import com.learnia.core.study.api.dtos.StudyDtos.AnswerAttemptQuestionResponse;
 import com.learnia.core.study.api.dtos.StudyDtos.AttemptResponse;
 import com.learnia.core.study.api.dtos.StudyDtos.MoveProblemSetRequest;
+import com.learnia.core.study.api.dtos.StudyDtos.PerformanceAnalysisResponse;
 import com.learnia.core.study.api.dtos.StudyDtos.ProblemSetDetailResponse;
 import com.learnia.core.study.api.dtos.StudyDtos.ProblemSetPerformanceResponse;
 import com.learnia.core.study.api.dtos.StudyDtos.ProblemSetSummaryResponse;
@@ -97,6 +98,20 @@ public class StudyController {
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable UUID problemSetId) {
         return studyService.getProblemSetPerformance(userId(jwt), problemSetId);
+    }
+
+    @GetMapping("/problem-sets/{problemSetId}/performance-analysis")
+    public PerformanceAnalysisResponse getLatestPerformanceAnalysis(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable UUID problemSetId) {
+        return studyService.getLatestPerformanceAnalysis(userId(jwt), problemSetId);
+    }
+
+    @PostMapping("/problem-sets/{problemSetId}/performance-analysis/retry")
+    public PerformanceAnalysisResponse retryPerformanceAnalysis(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable UUID problemSetId) {
+        return studyService.retryPerformanceAnalysis(userId(jwt), problemSetId);
     }
 
     @PostMapping("/problem-sets/{problemSetId}/attempts")

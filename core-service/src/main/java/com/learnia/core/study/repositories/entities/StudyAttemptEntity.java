@@ -103,6 +103,10 @@ public class StudyAttemptEntity {
         return id;
     }
 
+    public UUID getUserId() {
+        return userId;
+    }
+
     public StudyProblemSetEntity getProblemSet() {
         return problemSet;
     }

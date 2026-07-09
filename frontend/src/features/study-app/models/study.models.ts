@@ -73,6 +73,31 @@ export interface ProblemSetPerformance {
   questions: QuestionPerformance[];
 }
 
+export type PerformanceAnalysisStatus = "NOT_REQUESTED" | "PENDING" | "READY" | "FAILED";
+
+export interface PerformanceAnalysisReference {
+  title: string;
+  url: string;
+  justification: string;
+}
+
+export interface PerformanceAnalysis {
+  analysisRequestId?: string | null;
+  status: PerformanceAnalysisStatus;
+  summary?: string | null;
+  markdown?: string | null;
+  strengths: string[];
+  gaps: string[];
+  evolution: string[];
+  recommendations: string[];
+  exercises: string[];
+  references: PerformanceAnalysisReference[];
+  failureReason?: string | null;
+  requestedAt?: string | null;
+  generatedAt?: string | null;
+  version: number;
+}
+
 export interface PerformanceBreakdown {
   name: string;
   answeredCount: number;

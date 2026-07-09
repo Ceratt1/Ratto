@@ -22,7 +22,7 @@ kafka:
 ai:
   base-url: https://generativelanguage.googleapis.com/v1beta
   api-key: YOUR_GEMINI_API_KEY
-  model: gemini-2.5-flash
+  model: gemini-3.5-flash
   temperature: 0.2
   max-output-tokens: 8192
 

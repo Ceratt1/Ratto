@@ -7,6 +7,7 @@ import com.learnia.core.study.api.dtos.StudyDtos.AnswerAttemptQuestionRequest;
 import com.learnia.core.study.api.dtos.StudyDtos.AnswerAttemptQuestionResponse;
 import com.learnia.core.study.api.dtos.StudyDtos.AttemptResponse;
 import com.learnia.core.study.api.dtos.StudyDtos.MoveProblemSetRequest;
+import com.learnia.core.study.api.dtos.StudyDtos.PerformanceAnalysisResponse;
 import com.learnia.core.study.api.dtos.StudyDtos.ProblemSetPerformanceResponse;
 import com.learnia.core.study.api.dtos.StudyDtos.ProblemSetDetailResponse;
 import com.learnia.core.study.api.dtos.StudyDtos.ProblemSetSummaryResponse;
@@ -15,6 +16,8 @@ import com.learnia.core.study.api.dtos.StudyDtos.WorkspacePerformanceResponse;
 import com.learnia.core.study.api.dtos.WorkspaceDtos.WorkspaceRequest;
 import com.learnia.core.study.api.dtos.WorkspaceDtos.WorkspaceResponse;
 import com.learnia.events.StudyProblemsGeneratedEvent;
+import com.learnia.events.StudyPerformanceAnalysisFailedEvent;
+import com.learnia.events.StudyPerformanceAnalysisGeneratedEvent;
 
 public interface StudyService {
 
@@ -43,4 +46,12 @@ public interface StudyService {
     AttemptResponse submitAttempt(UUID userId, UUID attemptId, SubmitAttemptRequest request);
 
     void projectGeneratedProblems(StudyProblemsGeneratedEvent event);
+
+    PerformanceAnalysisResponse getLatestPerformanceAnalysis(UUID userId, UUID problemSetId);
+
+    PerformanceAnalysisResponse retryPerformanceAnalysis(UUID userId, UUID problemSetId);
+
+    void applyGeneratedPerformanceAnalysis(StudyPerformanceAnalysisGeneratedEvent event);
+
+    void applyFailedPerformanceAnalysis(StudyPerformanceAnalysisFailedEvent event);
 }

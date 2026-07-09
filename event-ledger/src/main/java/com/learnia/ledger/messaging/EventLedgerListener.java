@@ -23,7 +23,10 @@ public class EventLedgerListener {
                     EventTopics.PDF_PROCESSING_REQUESTED,
                     EventTopics.PDF_TEXT_EXTRACTED,
                     EventTopics.STUDY_PROBLEMS_GENERATED,
-                    EventTopics.PDF_INGESTION_ERRORS
+                    EventTopics.PDF_INGESTION_ERRORS,
+                    EventTopics.STUDY_PERFORMANCE_ANALYSIS_REQUESTED,
+                    EventTopics.STUDY_PERFORMANCE_ANALYSIS_GENERATED,
+                    EventTopics.STUDY_PERFORMANCE_ANALYSIS_ERRORS
             },
             groupId = "event-ledger")
     public void consume(ConsumerRecord<String, String> record) {

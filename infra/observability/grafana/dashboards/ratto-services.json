@@ -89,7 +89,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "up{job=~\"api-gateway|producer|pdf-extractor|question-generator|event-ledger|core-service|keycloak\"}",
+          "expr": "up{job=~\"api-gateway|producer|pdf-extractor|question-generator|performance-analyzer|event-ledger|core-service|keycloak\"}",
           "legendFormat": "{{service}}",
           "range": true,
           "refId": "A"

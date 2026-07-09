@@ -2,6 +2,7 @@ package com.learnia.core.study.services.impl;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -13,6 +14,9 @@ import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,6 +27,8 @@ import com.learnia.core.study.api.dtos.StudyDtos.AttemptAnswerResponse;
 import com.learnia.core.study.api.dtos.StudyDtos.AttemptPerformanceSummaryResponse;
 import com.learnia.core.study.api.dtos.StudyDtos.AttemptResponse;
 import com.learnia.core.study.api.dtos.StudyDtos.MoveProblemSetRequest;
+import com.learnia.core.study.api.dtos.StudyDtos.PerformanceAnalysisReferenceResponse;
+import com.learnia.core.study.api.dtos.StudyDtos.PerformanceAnalysisResponse;
 import com.learnia.core.study.api.dtos.StudyDtos.PerformanceBreakdownResponse;
 import com.learnia.core.study.api.dtos.StudyDtos.ProblemSetDetailResponse;
 import com.learnia.core.study.api.dtos.StudyDtos.ProblemSetPerformanceResponse;
@@ -35,15 +41,32 @@ import com.learnia.core.study.api.dtos.StudyDtos.WorkspacePerformanceResponse;
 import com.learnia.core.study.api.dtos.WorkspaceDtos.WorkspaceRequest;
 import com.learnia.core.study.api.dtos.WorkspaceDtos.WorkspaceResponse;
 import com.learnia.core.study.repositories.JpaStudyAttemptRepository;
+import com.learnia.core.study.repositories.JpaStudyPerformanceAnalysisRepository;
 import com.learnia.core.study.repositories.JpaStudyProblemSetRepository;
 import com.learnia.core.study.repositories.JpaStudyWorkspaceRepository;
 import com.learnia.core.study.repositories.entities.StudyAnswerEntity;
 import com.learnia.core.study.repositories.entities.StudyAttemptAnswerEntity;
 import com.learnia.core.study.repositories.entities.StudyAttemptEntity;
+import com.learnia.core.study.repositories.entities.StudyPerformanceAnalysisEntity;
+import com.learnia.core.study.repositories.entities.StudyPerformanceAnalysisEntity.JsonFields;
 import com.learnia.core.study.repositories.entities.StudyProblemSetEntity;
 import com.learnia.core.study.repositories.entities.StudyQuestionEntity;
 import com.learnia.core.study.repositories.entities.StudyWorkspaceEntity;
+import com.learnia.events.EventIdFactory;
+import com.learnia.events.EventMetadata;
+import com.learnia.events.EventTopics;
+import com.learnia.events.EventTypes;
 import com.learnia.events.StudyProblemsGeneratedEvent;
+import com.learnia.events.StudyPerformanceAnalysisFailedEvent;
+import com.learnia.events.StudyPerformanceAnalysisGeneratedEvent;
+import com.learnia.events.StudyPerformanceAnalysisGeneratedEvent.Reference;
+import com.learnia.events.StudyPerformanceAnalysisRequestedEvent;
+import com.learnia.events.StudyPerformanceAnalysisRequestedEvent.AnswerSnapshot;
+import com.learnia.events.StudyPerformanceAnalysisRequestedEvent.AttemptAnswerSnapshot;
+import com.learnia.events.StudyPerformanceAnalysisRequestedEvent.AttemptSnapshot;
+import com.learnia.events.StudyPerformanceAnalysisRequestedEvent.PerformanceAnalysisSnapshot;
+import com.learnia.events.StudyPerformanceAnalysisRequestedEvent.ProblemSetSnapshot;
+import com.learnia.events.StudyPerformanceAnalysisRequestedEvent.QuestionSnapshot;
 import com.learnia.models.study.StudyAnswer;
 import com.learnia.models.study.StudyProblemSet;
 import com.learnia.tools.aws.service.S3StorageService;
@@ -53,9 +76,13 @@ import tools.jackson.databind.ObjectMapper;
 @Service
 public class StudyServiceImpl implements com.learnia.core.study.services.StudyService {
 
+    private static final Logger logger = LoggerFactory.getLogger(StudyServiceImpl.class);
+
     private final JpaStudyWorkspaceRepository workspaceRepository;
     private final JpaStudyProblemSetRepository problemSetRepository;
     private final JpaStudyAttemptRepository attemptRepository;
+    private final JpaStudyPerformanceAnalysisRepository analysisRepository;
+    private final KafkaTemplate<String, StudyPerformanceAnalysisRequestedEvent> performanceAnalysisKafkaTemplate;
     private final S3StorageService s3StorageService;
     private final ObjectMapper objectMapper;
 
@@ -63,11 +90,15 @@ public class StudyServiceImpl implements com.learnia.core.study.services.StudySe
             JpaStudyWorkspaceRepository workspaceRepository,
             JpaStudyProblemSetRepository problemSetRepository,
             JpaStudyAttemptRepository attemptRepository,
+            JpaStudyPerformanceAnalysisRepository analysisRepository,
+            KafkaTemplate<String, StudyPerformanceAnalysisRequestedEvent> performanceAnalysisKafkaTemplate,
             S3StorageService s3StorageService,
             ObjectMapper objectMapper) {
         this.workspaceRepository = workspaceRepository;
         this.problemSetRepository = problemSetRepository;
         this.attemptRepository = attemptRepository;
+        this.analysisRepository = analysisRepository;
+        this.performanceAnalysisKafkaTemplate = performanceAnalysisKafkaTemplate;
         this.s3StorageService = s3StorageService;
         this.objectMapper = objectMapper;
     }
@@ -206,6 +237,7 @@ public class StudyServiceImpl implements com.learnia.core.study.services.StudySe
                 .findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("Questão sem alternativa correta."));
         StudyAttemptAnswerEntity recorded = attempt.answer(question, selected);
+        requestPerformanceAnalysisIfSubmitted(attempt);
         int correctCount = attempt.getCorrectCount() == null ? 0 : attempt.getCorrectCount();
         return new AnswerAttemptQuestionResponse(
                 question.getId(),
@@ -249,6 +281,7 @@ public class StudyServiceImpl implements com.learnia.core.study.services.StudySe
         }
         int correctCount = (int) attemptAnswers.stream().filter(StudyAttemptAnswerEntity::isCorrect).count();
         attempt.submit(attemptAnswers, correctCount);
+        requestPerformanceAnalysisIfSubmitted(attempt);
         return toAttemptResponse(attempt);
     }
 
@@ -294,6 +327,74 @@ public class StudyServiceImpl implements com.learnia.core.study.services.StudySe
         problemSetRepository.save(entity);
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public PerformanceAnalysisResponse getLatestPerformanceAnalysis(UUID userId, UUID problemSetId) {
+        problemSetRepository.findByIdAndUserId(problemSetId, userId)
+                .orElseThrow(() -> new IllegalArgumentException("Prova não encontrada."));
+        return analysisRepository.findFirstByUserIdAndProblemSet_IdOrderByRequestedAtDesc(userId, problemSetId)
+                .map(this::toPerformanceAnalysisResponse)
+                .orElse(new PerformanceAnalysisResponse(
+                        null,
+                        "NOT_REQUESTED",
+                        null,
+                        null,
+                        List.of(),
+                        List.of(),
+                        List.of(),
+                        List.of(),
+                        List.of(),
+                        List.of(),
+                        null,
+                        null,
+                        null,
+                        0));
+    }
+
+    @Override
+    @Transactional
+    public PerformanceAnalysisResponse retryPerformanceAnalysis(UUID userId, UUID problemSetId) {
+        problemSetRepository.findByIdAndUserId(problemSetId, userId)
+                .orElseThrow(() -> new IllegalArgumentException("Prova não encontrada."));
+        StudyPerformanceAnalysisEntity latestAnalysis = analysisRepository
+                .findFirstByUserIdAndProblemSet_IdOrderByRequestedAtDesc(userId, problemSetId)
+                .orElse(null);
+        if (latestAnalysis != null && "PENDING".equals(latestAnalysis.getStatus())) {
+            return toPerformanceAnalysisResponse(latestAnalysis);
+        }
+        StudyAttemptEntity latestAttempt = attemptRepository
+                .findSubmittedByUserIdAndProblemSetIdOrderBySubmittedAtDesc(userId, problemSetId)
+                .stream()
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Finalize uma prática antes de pedir a leitura de desempenho."));
+        return toPerformanceAnalysisResponse(createAndRequestPerformanceAnalysis(latestAttempt));
+    }
+
+    @Override
+    @Transactional
+    public void applyGeneratedPerformanceAnalysis(StudyPerformanceAnalysisGeneratedEvent event) {
+        StudyPerformanceAnalysisEntity analysis = analysisRepository.findByAnalysisRequestId(event.analysisRequestId())
+                .orElseThrow(() -> new IllegalArgumentException("Análise pendente não encontrada."));
+        analysis.markReady(
+                event.aiProvider(),
+                event.aiModel(),
+                event.analysis(),
+                new JsonFields(
+                        toJson(event.analysis().strengths()),
+                        toJson(event.analysis().gaps()),
+                        toJson(event.analysis().evolution()),
+                        toJson(event.analysis().recommendations()),
+                        toJson(event.analysis().exercises()),
+                        toJson(event.analysis().references())));
+    }
+
+    @Override
+    @Transactional
+    public void applyFailedPerformanceAnalysis(StudyPerformanceAnalysisFailedEvent event) {
+        analysisRepository.findByAnalysisRequestId(event.analysisRequestId())
+                .ifPresent(analysis -> analysis.markFailed(event.reason()));
+    }
+
     private Map<UUID, List<StudyAttemptEntity>> attemptsByProblemSet(
             UUID userId,
             List<StudyProblemSetEntity> problemSets) {
@@ -303,6 +404,131 @@ public class StudyServiceImpl implements com.learnia.core.study.services.StudySe
         List<UUID> problemSetIds = problemSets.stream().map(StudyProblemSetEntity::getId).toList();
         return attemptRepository.findWithAnswersByUserIdAndProblemSetIds(userId, problemSetIds).stream()
                 .collect(Collectors.groupingBy(attempt -> attempt.getProblemSet().getId()));
+    }
+
+    private void requestPerformanceAnalysisIfSubmitted(StudyAttemptEntity attempt) {
+        if (!"SUBMITTED".equals(attempt.getStatus()) || analysisRepository.existsByAttempt_Id(attempt.getId())) {
+            return;
+        }
+        createAndRequestPerformanceAnalysis(attempt);
+    }
+
+    private StudyPerformanceAnalysisEntity createAndRequestPerformanceAnalysis(StudyAttemptEntity attempt) {
+        UUID analysisRequestId = UUID.randomUUID();
+        int version = analysisRepository.latestVersion(attempt.getProblemSet().getId()) + 1;
+        StudyPerformanceAnalysisEntity analysis = analysisRepository.save(new StudyPerformanceAnalysisEntity(
+                analysisRequestId,
+                attempt.getUserId(),
+                attempt.getProblemSet(),
+                attempt,
+                version));
+        StudyPerformanceAnalysisRequestedEvent event = toPerformanceAnalysisRequestedEvent(attempt, analysis);
+        try {
+            performanceAnalysisKafkaTemplate.send(
+                    EventTopics.STUDY_PERFORMANCE_ANALYSIS_REQUESTED,
+                    attempt.getProblemSet().getId().toString(),
+                    event);
+        } catch (RuntimeException exception) {
+            analysis.markFailed("Não foi possível preparar a análise desta prática.");
+            logger.warn(
+                    "Could not publish performance analysis request {} for attempt {}.",
+                    analysisRequestId,
+                    attempt.getId(),
+                    exception);
+        }
+        return analysis;
+    }
+
+    private StudyPerformanceAnalysisRequestedEvent toPerformanceAnalysisRequestedEvent(
+            StudyAttemptEntity submittedAttempt,
+            StudyPerformanceAnalysisEntity analysis) {
+        StudyProblemSetEntity problemSet = submittedAttempt.getProblemSet();
+        List<StudyAttemptEntity> attempts = attemptRepository.findWithAnswersByUserIdAndProblemSetIds(
+                submittedAttempt.getUserId(),
+                List.of(problemSet.getId()));
+        PerformanceAnalysisSnapshot previousAnalysis = analysisRepository
+                .findFirstByUserIdAndProblemSet_IdAndAnalysisRequestIdNotOrderByRequestedAtDesc(
+                        submittedAttempt.getUserId(),
+                        problemSet.getId(),
+                        analysis.getAnalysisRequestId())
+                .map(previous -> new PerformanceAnalysisSnapshot(
+                        previous.getAnalysisRequestId(),
+                        previous.getStatus(),
+                        previous.getSummary(),
+                        previous.getMarkdown(),
+                        previous.getGeneratedAt()))
+                .orElse(null);
+        return new StudyPerformanceAnalysisRequestedEvent(
+                new EventMetadata(
+                        EventIdFactory.forFile(EventTypes.STUDY_PERFORMANCE_ANALYSIS_REQUESTED, analysis.getAnalysisRequestId()),
+                        analysis.getAnalysisRequestId(),
+                        submittedAttempt.getId(),
+                        EventTypes.STUDY_PERFORMANCE_ANALYSIS_REQUESTED,
+                        "core-service",
+                        "1",
+                        OffsetDateTime.now(ZoneOffset.UTC).toString()),
+                submittedAttempt.getUserId(),
+                problemSet.getId(),
+                submittedAttempt.getId(),
+                analysis.getAnalysisRequestId(),
+                toProblemSetSnapshot(problemSet),
+                attempts.stream()
+                        .sorted(Comparator.comparing(this::attemptTime))
+                        .map(this::toAttemptSnapshot)
+                        .toList(),
+                previousAnalysis);
+    }
+
+    private ProblemSetSnapshot toProblemSetSnapshot(StudyProblemSetEntity problemSet) {
+        return new ProblemSetSnapshot(
+                problemSet.getId(),
+                problemSet.getFileUuid(),
+                problemSet.getOriginalFileName(),
+                problemSet.getDescription(),
+                problemSet.getDocumentLanguage(),
+                problemSet.getStudyLanguage(),
+                problemSet.getDocumentSummary(),
+                problemSet.getQuestions().stream().map(this::toQuestionSnapshot).toList());
+    }
+
+    private QuestionSnapshot toQuestionSnapshot(StudyQuestionEntity question) {
+        return new QuestionSnapshot(
+                question.getId(),
+                question.getPosition(),
+                question.getQuestion(),
+                question.getSubject(),
+                question.getTheme(),
+                question.getDifficulty(),
+                question.getGeneralExplanation(),
+                question.getAnswers().stream()
+                        .map(answer -> new AnswerSnapshot(
+                                answer.getId(),
+                                answer.getPosition(),
+                                answer.getAnswer(),
+                                answer.getExplanation(),
+                                answer.isCorrect()))
+                        .toList());
+    }
+
+    private AttemptSnapshot toAttemptSnapshot(StudyAttemptEntity attempt) {
+        return new AttemptSnapshot(
+                attempt.getId(),
+                attempt.getStatus(),
+                attempt.getScore(),
+                attempt.getCorrectCount(),
+                attempt.getTotalQuestions(),
+                attempt.getStartedAt(),
+                attempt.getSubmittedAt(),
+                attempt.getAnswers().stream()
+                        .sorted(Comparator.comparing(answer -> answer.getQuestion().getPosition()))
+                        .map(answer -> new AttemptAnswerSnapshot(
+                                answer.getQuestion().getId(),
+                                answer.getSelectedAnswer().getId(),
+                                answer.isCorrect(),
+                                answer.getQuestion().getSubject(),
+                                answer.getQuestion().getTheme(),
+                                answer.getQuestion().getDifficulty()))
+                        .toList());
     }
 
     private ProblemSetPerformanceSummaryResponse toProblemSetPerformanceSummary(
@@ -539,6 +765,55 @@ public class StudyServiceImpl implements com.learnia.core.study.services.StudySe
                                 answer.getSelectedAnswer().getId(),
                                 answer.isCorrect()))
                         .toList());
+    }
+
+    private PerformanceAnalysisResponse toPerformanceAnalysisResponse(StudyPerformanceAnalysisEntity analysis) {
+        return new PerformanceAnalysisResponse(
+                analysis.getAnalysisRequestId(),
+                analysis.getStatus(),
+                analysis.getSummary(),
+                analysis.getMarkdown(),
+                readStringList(analysis.getStrengths()),
+                readStringList(analysis.getGaps()),
+                readStringList(analysis.getEvolution()),
+                readStringList(analysis.getRecommendations()),
+                readStringList(analysis.getExercises()),
+                readReferences(analysis.getReferences()),
+                analysis.getFailureReason(),
+                analysis.getRequestedAt(),
+                analysis.getGeneratedAt(),
+                analysis.getVersion());
+    }
+
+    private List<String> readStringList(String json) {
+        try {
+            String[] values = objectMapper.readValue(json == null ? "[]" : json, String[].class);
+            return List.of(values);
+        } catch (Exception exception) {
+            return List.of();
+        }
+    }
+
+    private List<PerformanceAnalysisReferenceResponse> readReferences(String json) {
+        try {
+            Reference[] references = objectMapper.readValue(json == null ? "[]" : json, Reference[].class);
+            return java.util.Arrays.stream(references)
+                    .map(reference -> new PerformanceAnalysisReferenceResponse(
+                            reference.title(),
+                            reference.url(),
+                            reference.justification()))
+                    .toList();
+        } catch (Exception exception) {
+            return List.of();
+        }
+    }
+
+    private String toJson(Object value) {
+        try {
+            return objectMapper.writeValueAsString(value == null ? List.of() : value);
+        } catch (Exception exception) {
+            throw new IllegalArgumentException("Não foi possível salvar a análise.", exception);
+        }
     }
 
     private <T> T require(Map<UUID, T> values, UUID id, String message) {

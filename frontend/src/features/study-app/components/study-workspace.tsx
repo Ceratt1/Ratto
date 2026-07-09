@@ -32,6 +32,7 @@ import type {
   AttemptPerformanceSummary,
   Attempt,
   PendingProblemSet,
+  PerformanceAnalysis,
   PerformanceBreakdown,
   ProblemSetPerformance,
   ProblemSetDetail,
@@ -44,12 +45,14 @@ import {
   answerAttemptQuestion,
   createWorkspace,
   getProblemSetPerformance,
+  getLatestPerformanceAnalysis,
   getProcessingStatus,
   getProblemSet,
   getWorkspacePerformance,
   listProblemSets,
   listWorkspaces,
   moveProblemSet,
+  retryPerformanceAnalysis,
   startAttempt,
   updateWorkspace,
 } from "@/features/study-app/services/study-client";
@@ -62,6 +65,12 @@ const RATTO_PROCESSING_MESSAGES = [
   "Aff, mais um dia de leitura.",
   "Separando o que vira questão boa.",
   "Quase lá, o Ratto achou umas lacunas.",
+];
+const RATTO_ANALYSIS_MESSAGES = [
+  "O Ratto está comparando seus acertos e tropeços.",
+  "Ele está procurando os temas que mais pedem revisão.",
+  "Quase pronto: separando um plano de treino para você.",
+  "O Ratto está pensando em como melhorar sua próxima tentativa.",
 ];
 
 export function StudyWorkspace() {
@@ -78,10 +87,12 @@ export function StudyWorkspace() {
   const [attempt, setAttempt] = useState<Attempt | null>(null);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [answerFeedback, setAnswerFeedback] = useState<AnswerAttemptQuestionResponse | null>(null);
+  const [performanceAnalysis, setPerformanceAnalysis] = useState<PerformanceAnalysis | null>(null);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [quizFinished, setQuizFinished] = useState(false);
   const [answering, setAnswering] = useState(false);
   const [performanceLoading, setPerformanceLoading] = useState(false);
+  const [analysisRetrying, setAnalysisRetrying] = useState(false);
   const [openProblemSetMenuId, setOpenProblemSetMenuId] = useState<string | null>(null);
   const [workspaceFormOpen, setWorkspaceFormOpen] = useState(false);
   const [editingWorkspaceId, setEditingWorkspaceId] = useState<string | null>(null);
@@ -194,6 +205,15 @@ export function StudyWorkspace() {
   }, [pendingProblemSets.length]);
 
   useEffect(() => {
+    const showingAnalysisPanel = quizFinished || (view === "performance" && Boolean(activeProblemSetPerformance));
+    if (!showingAnalysisPanel || ["READY", "FAILED"].includes(performanceAnalysis?.status ?? "")) return;
+    const interval = window.setInterval(() => {
+      setMessageTick((current) => current + 1);
+    }, 4200);
+    return () => window.clearInterval(interval);
+  }, [activeProblemSetPerformance, performanceAnalysis?.status, quizFinished, view]);
+
+  useEffect(() => {
     const readyFileUuids = new Set([...problemSets, ...unassigned].map((problemSet) => problemSet.fileUuid));
     if (readyFileUuids.size === 0) return;
     let active = true;
@@ -246,7 +266,7 @@ export function StudyWorkspace() {
     }
 
     void poll();
-    const interval = window.setInterval(() => void poll(), 2500);
+    const interval = window.setInterval(() => void poll(), 3000);
     return () => {
       active = false;
       window.clearInterval(interval);
@@ -302,6 +322,7 @@ export function StudyWorkspace() {
       setAttempt(nextAttempt);
       setAnswers({});
       setAnswerFeedback(null);
+      setPerformanceAnalysis(null);
       setCurrentQuestionIndex(0);
       setQuizFinished(false);
       setView("practice");
@@ -314,6 +335,7 @@ export function StudyWorkspace() {
     setError("");
     setPerformanceLoading(true);
     setActiveProblemSetPerformance(null);
+    setPerformanceAnalysis(null);
     try {
       const token = await getToken();
       setWorkspacePerformance(await getWorkspacePerformance(token, selectedWorkspaceId));
@@ -328,12 +350,31 @@ export function StudyWorkspace() {
   async function openProblemSetPerformance(problemSetId: string) {
     setError("");
     setPerformanceLoading(true);
+    setPerformanceAnalysis(null);
     try {
-      setActiveProblemSetPerformance(await getProblemSetPerformance(await getToken(), problemSetId));
+      const token = await getToken();
+      const [performance, analysis] = await Promise.all([
+        getProblemSetPerformance(token, problemSetId),
+        getLatestPerformanceAnalysis(token, problemSetId),
+      ]);
+      setActiveProblemSetPerformance(performance);
+      setPerformanceAnalysis(analysis);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Falha ao abrir detalhes da prova.");
     } finally {
       setPerformanceLoading(false);
+    }
+  }
+
+  async function retryAnalysis(problemSetId: string) {
+    setError("");
+    setAnalysisRetrying(true);
+    try {
+      setPerformanceAnalysis(await retryPerformanceAnalysis(await getToken(), problemSetId));
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Não foi possível tentar novamente agora.");
+    } finally {
+      setAnalysisRetrying(false);
     }
   }
 
@@ -377,6 +418,55 @@ export function StudyWorkspace() {
     setCurrentQuestionIndex((current) => current + 1);
     setAnswerFeedback(null);
   }
+
+  useEffect(() => {
+    if (!quizFinished || !activeProblemSet) return;
+    let active = true;
+    const problemSetId = activeProblemSet.id;
+    async function pollAnalysis() {
+      try {
+        const analysis = await getLatestPerformanceAnalysis(await getToken(), problemSetId);
+        if (active) {
+          setPerformanceAnalysis(analysis);
+        }
+      } catch {
+        if (active) {
+          setPerformanceAnalysis(null);
+        }
+      }
+    }
+    void pollAnalysis();
+    const interval = window.setInterval(() => void pollAnalysis(), 3000);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, [activeProblemSet, getToken, quizFinished]);
+
+  useEffect(() => {
+    if (view !== "performance" || !activeProblemSetPerformance || activeProblemSetPerformance.answeredCount === 0) return;
+    if (["READY", "FAILED"].includes(performanceAnalysis?.status ?? "")) return;
+    let active = true;
+    const problemSetId = activeProblemSetPerformance.problemSetId;
+    async function pollAnalysis() {
+      try {
+        const analysis = await getLatestPerformanceAnalysis(await getToken(), problemSetId);
+        if (active) {
+          setPerformanceAnalysis(analysis);
+        }
+      } catch {
+        if (active) {
+          setPerformanceAnalysis(null);
+        }
+      }
+    }
+    void pollAnalysis();
+    const interval = window.setInterval(() => void pollAnalysis(), 3000);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, [activeProblemSetPerformance, getToken, performanceAnalysis?.status, view]);
 
   async function move(problemSetId: string, workspaceId: string | null) {
     setError("");
@@ -457,6 +547,12 @@ export function StudyWorkspace() {
             <span>{Math.round(score)}%</span>
             <h2>{correctCount} de {activeProblemSet.questions.length} acertos</h2>
             <p>Revise as explicações e refaça a prática quando quiser fechar as lacunas.</p>
+            <PerformanceAnalysisPanel
+              analysis={performanceAnalysis}
+              messageTick={messageTick}
+              onRetry={() => retryAnalysis(activeProblemSet.id)}
+              retrying={analysisRetrying}
+            />
             <button className="icon-button primary" onClick={() => setView("overview")} type="button">
               <BookOpenCheck size={18} />
               Voltar para minhas provas
@@ -597,6 +693,15 @@ export function StudyWorkspace() {
             <PerformanceStat label="Erros" tone="incorrect" value={`${activeProblemSetPerformance.wrongCount}`} />
             <PerformanceStat label="Práticas" value={`${activeProblemSetPerformance.attemptCount}`} />
           </div>
+
+          {activeProblemSetPerformance.answeredCount > 0 && (
+            <PerformanceAnalysisPanel
+              analysis={performanceAnalysis}
+              messageTick={messageTick}
+              onRetry={() => retryAnalysis(activeProblemSetPerformance.problemSetId)}
+              retrying={analysisRetrying}
+            />
+          )}
 
           <PerformanceInsightGrid
             items={[
@@ -1079,6 +1184,101 @@ function ProblemSetHoverSummary({ performance }: Readonly<{ performance?: Proble
       )}
     </span>
   );
+}
+
+function PerformanceAnalysisPanel({ analysis, messageTick, onRetry, retrying }: Readonly<{
+  analysis: PerformanceAnalysis | null;
+  messageTick: number;
+  onRetry?: () => void;
+  retrying?: boolean;
+}>) {
+  if (analysis?.status === "READY" && analysis.markdown) {
+    return (
+      <section className="performance-analysis-ready" aria-label="Análise da prática">
+        <div className="performance-analysis-heading">
+          <Star size={18} />
+          <h3>Leitura do seu desempenho</h3>
+        </div>
+        <div className="performance-analysis-markdown">
+          {renderMarkdown(analysis.markdown)}
+        </div>
+      </section>
+    );
+  }
+
+  if (analysis?.status === "FAILED") {
+    const canRetry = onRetry && !isQuotaLimitError(analysis.failureReason);
+    return (
+      <section className="performance-analysis-waiting failed" aria-label="Análise indisponível">
+        <div>
+          <strong>O Ratto não conseguiu fechar essa leitura agora.</strong>
+          <p>{friendlyAnalysisError(analysis.failureReason)}</p>
+          {canRetry && (
+            <button className="icon-button secondary analysis-retry-button" disabled={retrying} onClick={onRetry} type="button">
+              <Clock3 size={17} />
+              {retrying ? "Tentando..." : "Tentar de novo"}
+            </button>
+          )}
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="performance-analysis-waiting" aria-label="Análise em preparo">
+      <div className="analysis-ratto-mark">
+        <Image src="/logo-ratto.png" alt="" width={64} height={64} />
+      </div>
+      <div>
+        <strong>Preparando sua leitura de desempenho</strong>
+        <p>{RATTO_ANALYSIS_MESSAGES[messageTick % RATTO_ANALYSIS_MESSAGES.length]}</p>
+      </div>
+    </section>
+  );
+}
+
+function friendlyAnalysisError(reason?: string | null): string {
+  const normalized = reason?.toLowerCase() ?? "";
+  if (isQuotaLimitError(reason)) {
+    return "Nesta versão MVP, a leitura automática ficou indisponível por limite de uso. Suas estatísticas, acertos, erros e pontos de revisão continuam salvos aqui.";
+  }
+  if (normalized.includes("503") || normalized.includes("high demand") || normalized.includes("unavailable")) {
+    return "A leitura encontrou muita procura no serviço de IA. Suas respostas ficaram salvas e você pode tentar novamente em instantes.";
+  }
+  if (normalized.includes("429") || normalized.includes("quota")) {
+    return "A leitura bateu um limite temporário de uso. Suas respostas ficaram salvas e você pode tentar novamente daqui a pouco.";
+  }
+  return "Suas respostas ficaram salvas. Você já pode revisar a prova e tentar gerar a leitura novamente.";
+}
+
+function isQuotaLimitError(reason?: string | null): boolean {
+  const normalized = reason?.toLowerCase() ?? "";
+  return normalized.includes("quota")
+    || normalized.includes("resource_exhausted")
+    || normalized.includes("free_tier_requests")
+    || normalized.includes("exceeded your current quota");
+}
+
+function renderMarkdown(markdown: string): ReactNode[] {
+  return markdown.split("\n").map((line, index) => {
+    const key = `${index}-${line}`;
+    if (line.startsWith("### ")) {
+      return <h4 key={key}>{line.slice(4)}</h4>;
+    }
+    if (line.startsWith("## ")) {
+      return <h3 key={key}>{line.slice(3)}</h3>;
+    }
+    if (line.startsWith("# ")) {
+      return <h3 key={key}>{line.slice(2)}</h3>;
+    }
+    if (line.startsWith("- ")) {
+      return <p className="markdown-bullet" key={key}>{line.slice(2)}</p>;
+    }
+    if (!line.trim()) {
+      return <span className="markdown-space" key={key} />;
+    }
+    return <p key={key}>{line}</p>;
+  });
 }
 
 function PerformanceOutcomePanel({

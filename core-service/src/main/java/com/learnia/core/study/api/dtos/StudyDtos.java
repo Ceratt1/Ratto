@@ -174,4 +174,27 @@ public final class StudyDtos {
             UUID selectedAnswerId,
             boolean correct) {
     }
+
+    public record PerformanceAnalysisResponse(
+            UUID analysisRequestId,
+            String status,
+            String summary,
+            String markdown,
+            List<String> strengths,
+            List<String> gaps,
+            List<String> evolution,
+            List<String> recommendations,
+            List<String> exercises,
+            List<PerformanceAnalysisReferenceResponse> references,
+            String failureReason,
+            OffsetDateTime requestedAt,
+            OffsetDateTime generatedAt,
+            int version) {
+    }
+
+    public record PerformanceAnalysisReferenceResponse(
+            String title,
+            String url,
+            String justification) {
+    }
 }

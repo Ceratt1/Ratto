@@ -24,4 +24,12 @@ public interface JpaStudyAttemptRepository extends JpaRepository<StudyAttemptEnt
             where a.userId = :userId and p.id in :problemSetIds
             """)
     List<StudyAttemptEntity> findWithAnswersByUserIdAndProblemSetIds(UUID userId, Collection<UUID> problemSetIds);
+
+    @Query("""
+            select a from StudyAttemptEntity a
+            join fetch a.problemSet p
+            where a.userId = :userId and p.id = :problemSetId and a.status = 'SUBMITTED'
+            order by a.submittedAt desc
+            """)
+    List<StudyAttemptEntity> findSubmittedByUserIdAndProblemSetIdOrderBySubmittedAtDesc(UUID userId, UUID problemSetId);
 }

@@ -31,6 +31,13 @@ scrape_configs:
         labels:
           service: question-generator
 
+  - job_name: performance-analyzer
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["performance-analyzer:9090"]
+        labels:
+          service: performance-analyzer
+
   - job_name: event-ledger
     metrics_path: /actuator/prometheus
     static_configs:

@@ -1,0 +1,32 @@
+spring:
+  application:
+    name: performance-analyzer
+  kafka:
+    bootstrap-servers: localhost:9092
+
+kafka:
+  bootstrap-servers: ${spring.kafka.bootstrap-servers}
+
+ai:
+  base-url: https://generativelanguage.googleapis.com/v1beta
+  api-key:
+  model: gemini-3.5-flash
+  temperature: 0.2
+  max-output-tokens: 8192
+
+web-search:
+  enabled: false
+
+server:
+  port: 9090
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: always

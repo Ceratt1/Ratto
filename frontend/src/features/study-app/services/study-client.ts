@@ -1,6 +1,7 @@
 import type {
   AnswerAttemptQuestionResponse,
   Attempt,
+  PerformanceAnalysis,
   ProblemSetPerformance,
   ProblemSetDetail,
   ProblemSetSummary,
@@ -54,6 +55,22 @@ export async function getWorkspacePerformance(token: string, workspaceId?: strin
 
 export async function getProblemSetPerformance(token: string, id: string): Promise<ProblemSetPerformance> {
   return studyRequest<ProblemSetPerformance>(`/api/study/problem-sets/${id}/performance`, { method: "GET" }, token);
+}
+
+export async function getLatestPerformanceAnalysis(token: string, id: string): Promise<PerformanceAnalysis> {
+  return studyRequest<PerformanceAnalysis>(
+    `/api/study/problem-sets/${id}/performance-analysis`,
+    { method: "GET" },
+    token,
+  );
+}
+
+export async function retryPerformanceAnalysis(token: string, id: string): Promise<PerformanceAnalysis> {
+  return studyRequest<PerformanceAnalysis>(
+    `/api/study/problem-sets/${id}/performance-analysis/retry`,
+    { method: "POST" },
+    token,
+  );
 }
 
 export async function startAttempt(token: string, problemSetId: string): Promise<Attempt> {

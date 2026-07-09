@@ -1019,6 +1019,121 @@
   color: #667085;
 }
 
+.performance-analysis-waiting,
+.performance-analysis-ready {
+  width: min(100%, 760px);
+  margin: 18px 0 8px;
+  border: 1px solid #e6edf5;
+  border-radius: 14px;
+  background: #ffffff;
+  text-align: left;
+}
+
+.performance-analysis-waiting {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 18px;
+}
+
+.performance-analysis-waiting.failed {
+  border-color: #fee4e2;
+  background: #fffbfa;
+}
+
+.performance-analysis-waiting strong,
+.performance-analysis-heading h3 {
+  color: #182230;
+}
+
+.performance-analysis-waiting p {
+  max-width: none;
+  margin: 4px 0 0;
+}
+
+.analysis-retry-button {
+  margin-top: 12px;
+}
+
+.analysis-ratto-mark {
+  display: grid;
+  place-items: center;
+  width: 74px;
+  height: 74px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #fff1b8;
+}
+
+.analysis-ratto-mark img {
+  width: 54px;
+  height: 54px;
+  object-fit: contain;
+  animation: ratto-write-bob 1.2s ease-in-out infinite;
+}
+
+.performance-analysis-ready {
+  padding: 20px;
+}
+
+.performance-analysis-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  color: #0b68d0;
+}
+
+.performance-analysis-heading h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.performance-analysis-markdown {
+  display: grid;
+  gap: 8px;
+  color: #475467;
+  line-height: 1.55;
+}
+
+.performance-analysis-markdown h3,
+.performance-analysis-markdown h4,
+.performance-analysis-markdown p {
+  max-width: none;
+  margin: 0;
+}
+
+.performance-analysis-markdown h3 {
+  color: #101828;
+  font-size: 1.12rem;
+}
+
+.performance-analysis-markdown h4 {
+  color: #182230;
+  font-size: 1rem;
+}
+
+.performance-analysis-markdown .markdown-bullet {
+  padding-left: 18px;
+  position: relative;
+}
+
+.performance-analysis-markdown .markdown-bullet::before {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 0.7em;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #0b68d0;
+}
+
+.markdown-space {
+  display: block;
+  height: 4px;
+}
+
 @keyframes ratto-write-bob {
   0%,
   100% {
