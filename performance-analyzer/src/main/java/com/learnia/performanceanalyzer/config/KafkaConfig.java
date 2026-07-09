@@ -58,6 +58,8 @@ public class KafkaConfig {
         properties.put(ConsumerConfig.GROUP_ID_CONFIG, "performance-analyzer");
         properties.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
         properties.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false);
+        properties.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, 1);
+        properties.put(ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG, 1_200_000);
         return new DefaultKafkaConsumerFactory<>(
                 properties,
                 new StringDeserializer(),
@@ -107,7 +109,7 @@ public class KafkaConfig {
                 new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(consumerFactory);
         factory.setCommonErrorHandler(kafkaErrorHandler);
-        factory.setConcurrency(2);
+        factory.setConcurrency(1);
         return factory;
     }
 

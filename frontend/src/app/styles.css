@@ -1096,42 +1096,70 @@
   line-height: 1.55;
 }
 
+.performance-analysis-markdown h2,
 .performance-analysis-markdown h3,
 .performance-analysis-markdown h4,
-.performance-analysis-markdown p {
+.performance-analysis-markdown p,
+.performance-analysis-markdown ul {
   max-width: none;
   margin: 0;
 }
 
-.performance-analysis-markdown h3 {
+.performance-analysis-markdown h2 {
   color: #101828;
-  font-size: 1.12rem;
+  font-size: 1.18rem;
 }
 
+.performance-analysis-markdown h3,
 .performance-analysis-markdown h4 {
   color: #182230;
   font-size: 1rem;
 }
 
-.performance-analysis-markdown .markdown-bullet {
-  padding-left: 18px;
-  position: relative;
+.performance-analysis-markdown ul {
+  display: grid;
+  gap: 8px;
+  padding-left: 20px;
 }
 
-.performance-analysis-markdown .markdown-bullet::before {
-  content: "";
-  position: absolute;
-  left: 2px;
-  top: 0.7em;
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: #0b68d0;
+.performance-analysis-markdown li::marker {
+  color: #0b68d0;
 }
 
-.markdown-space {
-  display: block;
-  height: 4px;
+.performance-analysis-references {
+  display: grid;
+  gap: 10px;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid #e6edf5;
+}
+
+.performance-analysis-references h4 {
+  margin: 0;
+  color: #182230;
+  font-size: 1rem;
+}
+
+.performance-analysis-references ul {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding-left: 20px;
+}
+
+.performance-analysis-references a {
+  color: #0b68d0;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.performance-analysis-references a:hover {
+  text-decoration: underline;
+}
+
+.performance-analysis-references p {
+  margin: 3px 0 0;
+  color: #667085;
 }
 
 @keyframes ratto-write-bob {

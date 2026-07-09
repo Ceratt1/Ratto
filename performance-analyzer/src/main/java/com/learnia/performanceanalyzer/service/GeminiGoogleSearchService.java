@@ -8,6 +8,7 @@ import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 
@@ -30,6 +31,7 @@ import reactor.util.retry.Retry;
 public class GeminiGoogleSearchService implements WebSearchService {
 
     private static final int MAX_REFERENCES = 5;
+    private static final Duration SEARCH_TIMEOUT = Duration.ofSeconds(45);
 
     private final WebClient aiWebClient;
     private final String model;
@@ -55,11 +57,14 @@ public class GeminiGoogleSearchService implements WebSearchService {
                         status -> status.isError(),
                         response -> response.bodyToMono(String.class)
                                 .defaultIfEmpty("No response body")
-                                .map(body -> new IllegalArgumentException(
-                                        "Gemini web search returned HTTP " + response.statusCode().value() + ": " + body)))
+                                .map(body -> new GeminiWebSearchException(response.statusCode(), body)))
                 .bodyToMono(GeminiInteractionResponse.class)
-                .retryWhen(Retry.backoff(2, Duration.ofSeconds(2)).maxBackoff(Duration.ofSeconds(10)))
+                .timeout(SEARCH_TIMEOUT)
+                .retryWhen(Retry.backoff(1, Duration.ofSeconds(2))
+                        .maxBackoff(Duration.ofSeconds(6))
+                        .filter(GeminiGoogleSearchService::isRetryableSearchError))
                 .map(this::toReferences)
+                .onErrorReturn(List.of())
                 .block();
     }
 
@@ -154,5 +159,26 @@ public class GeminiGoogleSearchService implements WebSearchService {
         int end = Math.max(start, Math.min(citation.endIndex(), text.length()));
         String cited = text.substring(start, end).trim();
         return cited.isBlank() ? "Fonte sugerida para aprofundar a revisão." : cited;
+    }
+
+    private static boolean isRetryableSearchError(Throwable throwable) {
+        return throwable instanceof GeminiWebSearchException exception && exception.isTransient();
+    }
+
+    private static class GeminiWebSearchException extends RuntimeException {
+
+        private final int statusCode;
+
+        GeminiWebSearchException(HttpStatusCode statusCode, String responseBody) {
+            super("Gemini web search returned HTTP " + statusCode.value() + ": " + responseBody);
+            this.statusCode = statusCode.value();
+        }
+
+        boolean isTransient() {
+            return statusCode == 500
+                    || statusCode == 502
+                    || statusCode == 503
+                    || statusCode == 504;
+        }
     }
 }

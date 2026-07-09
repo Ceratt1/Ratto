@@ -61,7 +61,8 @@ public class GeminiPerformanceAnalyzer implements AiPerformanceAnalyzer {
                     "recommendations", STRING_ARRAY,
                     "exercises", STRING_ARRAY,
                     "references", GeminiJsonSchema.array(REFERENCE_SCHEMA)));
-    private static final int MAX_TRANSIENT_RETRIES = 6;
+    private static final int MAX_TRANSIENT_RETRIES = 2;
+    private static final Duration ANALYSIS_TIMEOUT = Duration.ofSeconds(150);
 
     private final WebClient aiWebClient;
     private final ObjectMapper objectMapper;
@@ -100,8 +101,9 @@ public class GeminiPerformanceAnalyzer implements AiPerformanceAnalyzer {
                                 .defaultIfEmpty("No response body")
                                 .map(body -> new GeminiHttpException(response.statusCode().value(), body)))
                 .bodyToMono(GeminiGenerateContentResponse.class)
+                .timeout(ANALYSIS_TIMEOUT)
                 .retryWhen(Retry.backoff(MAX_TRANSIENT_RETRIES, Duration.ofSeconds(2))
-                        .maxBackoff(Duration.ofSeconds(45))
+                        .maxBackoff(Duration.ofSeconds(15))
                         .filter(GeminiPerformanceAnalyzer::isRetryableGeminiError))
                 .map(this::toAnalysisResult);
     }
@@ -185,8 +187,7 @@ public class GeminiPerformanceAnalyzer implements AiPerformanceAnalyzer {
         }
 
         boolean isTransient() {
-            return statusCode == 429
-                    || statusCode == 500
+            return statusCode == 500
                     || statusCode == 502
                     || statusCode == 503
                     || statusCode == 504;

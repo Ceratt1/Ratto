@@ -1202,6 +1202,21 @@ function PerformanceAnalysisPanel({ analysis, messageTick, onRetry, retrying }: 
         <div className="performance-analysis-markdown">
           {renderMarkdown(analysis.markdown)}
         </div>
+        {analysis.references.length > 0 && (
+          <div className="performance-analysis-references">
+            <h4>Fontes para revisar</h4>
+            <ul>
+              {analysis.references.map((reference) => (
+                <li key={`${reference.title}-${reference.url}`}>
+                  <a href={reference.url} rel="noreferrer" target="_blank">
+                    {reference.title || reference.url}
+                  </a>
+                  {reference.justification && <p>{reference.justification}</p>}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </section>
     );
   }
@@ -1260,24 +1275,56 @@ function isQuotaLimitError(reason?: string | null): boolean {
 }
 
 function renderMarkdown(markdown: string): ReactNode[] {
-  return markdown.split("\n").map((line, index) => {
-    const key = `${index}-${line}`;
-    if (line.startsWith("### ")) {
-      return <h4 key={key}>{line.slice(4)}</h4>;
+  const nodes: ReactNode[] = [];
+  let listItems: ReactNode[] = [];
+
+  function flushList() {
+    if (listItems.length === 0) return;
+    nodes.push(<ul key={`list-${nodes.length}`}>{listItems}</ul>);
+    listItems = [];
+  }
+
+  markdown.split("\n").forEach((line, index) => {
+    const trimmed = line.trim();
+    const key = `${index}-${trimmed}`;
+    if (!trimmed) {
+      flushList();
+      return;
     }
-    if (line.startsWith("## ")) {
-      return <h3 key={key}>{line.slice(3)}</h3>;
+    if (trimmed.startsWith("### ")) {
+      flushList();
+      nodes.push(<h3 key={key}>{renderInlineMarkdown(trimmed.slice(4))}</h3>);
+      return;
     }
-    if (line.startsWith("# ")) {
-      return <h3 key={key}>{line.slice(2)}</h3>;
+    if (trimmed.startsWith("## ")) {
+      flushList();
+      nodes.push(<h2 key={key}>{renderInlineMarkdown(trimmed.slice(3))}</h2>);
+      return;
     }
-    if (line.startsWith("- ")) {
-      return <p className="markdown-bullet" key={key}>{line.slice(2)}</p>;
+    if (trimmed.startsWith("# ")) {
+      flushList();
+      nodes.push(<h2 key={key}>{renderInlineMarkdown(trimmed.slice(2))}</h2>);
+      return;
     }
-    if (!line.trim()) {
-      return <span className="markdown-space" key={key} />;
+    if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
+      listItems.push(<li key={key}>{renderInlineMarkdown(trimmed.slice(2))}</li>);
+      return;
     }
-    return <p key={key}>{line}</p>;
+    flushList();
+    nodes.push(<p key={key}>{renderInlineMarkdown(trimmed)}</p>);
+  });
+
+  flushList();
+  return nodes;
+}
+
+function renderInlineMarkdown(text: string): ReactNode[] {
+  const parts = text.split(/(\*\*[^*]+\*\*)/g);
+  return parts.filter(Boolean).map((part, index) => {
+    if (part.startsWith("**") && part.endsWith("**")) {
+      return <strong key={`${part}-${index}`}>{part.slice(2, -2)}</strong>;
+    }
+    return part;
   });
 }
 
