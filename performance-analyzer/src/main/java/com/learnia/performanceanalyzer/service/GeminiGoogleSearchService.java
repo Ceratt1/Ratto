@@ -30,7 +30,7 @@ import reactor.util.retry.Retry;
 
 @Service
 @ConditionalOnProperty(name = "web-search.enabled", havingValue = "true", matchIfMissing = true)
-public class GeminiGoogleSearchService implements WebSearchService {
+public class GeminiGoogleSearchService {
 
     private static final int MAX_REFERENCES = 12;
     private static final Duration SEARCH_TIMEOUT = Duration.ofSeconds(45);
@@ -46,7 +46,6 @@ public class GeminiGoogleSearchService implements WebSearchService {
         this.model = model;
     }
 
-    @Override
     public List<Reference> search(StudyPerformanceAnalysisRequestedEvent event) {
         GeminiInteractionRequest request = new GeminiInteractionRequest(
                 model,
@@ -105,6 +104,14 @@ public class GeminiGoogleSearchService implements WebSearchService {
                 reviewTargets.isEmpty()
                         ? "No missed answer was available. Find deeper review resources for the material's main topics."
                         : String.join("\n\n", reviewTargets));
+    }
+
+    String reviewTopicNames(StudyPerformanceAnalysisRequestedEvent event) {
+        List<String> topics = reviewTargets(event).stream()
+                .map(target -> target.split("\\|", 2)[0].trim())
+                .distinct()
+                .toList();
+        return topics.isEmpty() ? "os principais temas do material" : String.join(", ", topics);
     }
 
     private List<String> reviewTargets(StudyPerformanceAnalysisRequestedEvent event) {

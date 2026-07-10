@@ -10,18 +10,23 @@ import {
   CheckCircle2,
   ChevronRight,
   Clock3,
+  ExternalLink,
+  FileText,
   FileUp,
   Folder,
   FolderPlus,
   Inbox,
   Languages,
   ListChecks,
+  MessageCircle,
   MoreHorizontal,
   Pencil,
   Play,
   Save,
+  Sparkles,
   Star,
   Target,
+  Video,
 } from "lucide-react";
 
 import { UploadForm } from "@/features/pdf-upload/components/upload-form";
@@ -1195,28 +1200,72 @@ function PerformanceAnalysisPanel({ analysis, messageTick, onRetry, retrying }: 
   if (analysis?.status === "READY" && analysis.markdown) {
     return (
       <section className="performance-analysis-ready" aria-label="Análise da prática">
-        <div className="performance-analysis-heading">
-          <Star size={18} />
-          <h3>Leitura do seu desempenho</h3>
-        </div>
+        <header className="performance-analysis-heading">
+          <span className="performance-analysis-heading-icon"><Sparkles size={20} /></span>
+          <span className="compact-eyebrow">Análise personalizada</span>
+          <h2>Leitura do seu desempenho</h2>
+          <p>Entenda o resultado, priorize a revisão e escolha por onde continuar estudando.</p>
+        </header>
         <div className="performance-analysis-markdown">
-          {renderMarkdown(analysis.markdown)}
+          {renderPerformanceAnalysis(analysis.markdown)}
         </div>
-        {analysis.references.length > 0 && (
-          <div className="performance-analysis-references">
-            <h4>Fontes para revisar</h4>
-            <ul>
-              {analysis.references.map((reference) => (
-                <li key={`${reference.title}-${reference.url}`}>
-                  <a href={reference.url} rel="noreferrer" target="_blank">
-                    {reference.title || reference.url}
-                  </a>
-                  {reference.justification && <p>{reference.justification}</p>}
-                </li>
-              ))}
-            </ul>
+        <section className={`performance-analysis-references ${analysis.references.length === 0 ? "empty" : ""}`}>
+          <div className="performance-reference-heading">
+            <div>
+              <span className="compact-eyebrow">Continue aprendendo</span>
+              <h3>Fontes para revisar</h3>
+              <p>Vídeos, discussões e leituras escolhidos para as lacunas desta prova.</p>
+            </div>
+            <div className="performance-reference-actions">
+              {analysis.references.length > 0 && (
+                <span className="performance-reference-count">{analysis.references.length} fontes</span>
+              )}
+              {onRetry && analysis.references.length > 0 && (
+                <button className="icon-button secondary" disabled={retrying} onClick={onRetry} type="button">
+                  <Clock3 size={16} />
+                  {retrying ? "Atualizando..." : "Atualizar fontes"}
+                </button>
+              )}
+            </div>
           </div>
-        )}
+          {analysis.references.length > 0 ? (
+            <ul>
+              {analysis.references.map((reference) => {
+                const presentation = referencePresentation(reference.url);
+                return (
+                  <li key={`${reference.title}-${reference.url}`}>
+                    <div className="performance-reference-meta">
+                      <span className={`performance-reference-kind ${presentation.kind}`}>
+                        <ReferenceKindIcon kind={presentation.kind} />
+                        {presentation.label}
+                      </span>
+                      <small>{presentation.host}</small>
+                    </div>
+                    <a href={reference.url} rel="noreferrer" target="_blank">
+                      <span>{reference.title || reference.url}</span>
+                      <ExternalLink aria-hidden="true" size={16} />
+                    </a>
+                    {reference.justification && <p>{reference.justification}</p>}
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <div className="performance-references-empty">
+              <FileText size={22} />
+              <div>
+                <strong>Essa leitura foi gerada sem fontes externas.</strong>
+                <p>Gere novamente para buscar vídeos, fóruns, papers e artigos relacionados aos seus erros.</p>
+              </div>
+              {onRetry && (
+                <button className="icon-button secondary" disabled={retrying} onClick={onRetry} type="button">
+                  <Clock3 size={17} />
+                  {retrying ? "Buscando..." : "Buscar fontes"}
+                </button>
+              )}
+            </div>
+          )}
+        </section>
       </section>
     );
   }
@@ -1316,6 +1365,77 @@ function renderMarkdown(markdown: string): ReactNode[] {
 
   flushList();
   return nodes;
+}
+
+const PERFORMANCE_SECTION_TITLES = [
+  "leitura do resultado",
+  "o que funcionou",
+  "onde concentrar a revisão",
+  "próxima sessão",
+];
+
+function renderPerformanceAnalysis(markdown: string): ReactNode[] {
+  const sections: Array<{ title: string; body: string }> = [];
+  let currentTitle = "Leitura do resultado";
+  let currentLines: string[] = [];
+
+  function flushSection() {
+    const body = currentLines.join("\n").trim();
+    if (body) sections.push({ title: currentTitle, body });
+    currentLines = [];
+  }
+
+  markdown.split("\n").forEach((line) => {
+    const cleanLine = line.trim().replace(/^#{1,4}\s+/, "").replace(/^\*\*(.+)\*\*$/, "$1");
+    const normalized = cleanLine.replace(/:$/, "").toLowerCase();
+    if (PERFORMANCE_SECTION_TITLES.includes(normalized)) {
+      flushSection();
+      currentTitle = cleanLine.replace(/:$/, "");
+      return;
+    }
+    currentLines.push(line);
+  });
+  flushSection();
+
+  if (sections.length === 0) {
+    return [
+      <section className="performance-analysis-section featured" key="analysis-result">
+        <h3>Leitura do resultado</h3>
+        <div>{renderMarkdown(markdown)}</div>
+      </section>,
+    ];
+  }
+  return sections.map((section, index) => (
+    <section className={`performance-analysis-section ${index === 0 ? "featured" : ""}`} key={`${section.title}-${index}`}>
+      <h3>{section.title}</h3>
+      <div>{renderMarkdown(section.body)}</div>
+    </section>
+  ));
+}
+
+type ReferenceKind = "video" | "forum" | "paper" | "article";
+
+function referencePresentation(url: string): { host: string; kind: ReferenceKind; label: string } {
+  try {
+    const host = new URL(url).hostname.replace(/^www\./, "");
+    const searchableUrl = url.toLowerCase();
+    if (/youtube|youtu\.be|vimeo/.test(host)) return { host, kind: "video", label: "Vídeo" };
+    if (/reddit|stackexchange|stackoverflow|quora|forum|community|discuss/.test(searchableUrl)) {
+      return { host, kind: "forum", label: "Fórum" };
+    }
+    if (/arxiv|doi\.org|scielo|pubmed|researchgate|scholar/.test(host) || searchableUrl.includes(".pdf")) {
+      return { host, kind: "paper", label: "Paper" };
+    }
+    return { host, kind: "article", label: "Artigo" };
+  } catch {
+    return { host: "Fonte externa", kind: "article", label: "Artigo" };
+  }
+}
+
+function ReferenceKindIcon({ kind }: Readonly<{ kind: ReferenceKind }>) {
+  if (kind === "video") return <Video aria-hidden="true" size={14} />;
+  if (kind === "forum") return <MessageCircle aria-hidden="true" size={14} />;
+  return <FileText aria-hidden="true" size={14} />;
 }
 
 function renderInlineMarkdown(text: string): ReactNode[] {

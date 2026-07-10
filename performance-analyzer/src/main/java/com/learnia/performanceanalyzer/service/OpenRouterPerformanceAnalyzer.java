@@ -68,7 +68,8 @@ public class OpenRouterPerformanceAnalyzer {
                         new Message("user", analysisSupport.buildPrompt(event, webReferences))),
                 OpenRouterChatRequest.ResponseFormat.jsonObject(),
                 temperature,
-                maxOutputTokens);
+                maxOutputTokens,
+                null);
         return openRouterWebClient.post()
                 .uri("/chat/completions")
                 .bodyValue(request)

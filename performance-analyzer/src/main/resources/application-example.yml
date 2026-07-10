@@ -19,7 +19,8 @@ openrouter:
   enabled: true
   base-url: https://openrouter.ai/api/v1
   api-key:
-  model: openrouter/free
+  model: openai/gpt-4o
+  search-model: openai/gpt-4o
 
 web-search:
   enabled: true

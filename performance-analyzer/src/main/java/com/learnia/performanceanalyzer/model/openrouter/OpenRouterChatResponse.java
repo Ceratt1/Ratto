@@ -21,6 +21,22 @@ public record OpenRouterChatResponse(
             String finishReason) {
     }
 
-    public record Message(String role, String content) {
+    public record Message(String role, String content, List<Annotation> annotations) {
+    }
+
+    public record Annotation(
+            String type,
+            @JsonProperty("url_citation")
+            UrlCitation urlCitation) {
+    }
+
+    public record UrlCitation(
+            String url,
+            String title,
+            String content,
+            @JsonProperty("start_index")
+            Integer startIndex,
+            @JsonProperty("end_index")
+            Integer endIndex) {
     }
 }

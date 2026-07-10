@@ -229,7 +229,8 @@ services:
       OPENROUTER_ENABLED: ${PERFORMANCE_OPENROUTER_ENABLED:-true}
       OPENROUTER_BASE_URL: ${OPENROUTER_BASE_URL:-https://openrouter.ai/api/v1}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
-      OPENROUTER_MODEL: ${PERFORMANCE_OPENROUTER_MODEL:-openrouter/free}
+      OPENROUTER_MODEL: ${PERFORMANCE_OPENROUTER_MODEL:-openai/gpt-4o}
+      OPENROUTER_SEARCH_MODEL: ${PERFORMANCE_OPENROUTER_SEARCH_MODEL:-openai/gpt-4o}
       WEB_SEARCH_ENABLED: ${PERFORMANCE_WEB_SEARCH_ENABLED:-true}
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:9090/actuator/health/readiness >/dev/null 2>&1"]
