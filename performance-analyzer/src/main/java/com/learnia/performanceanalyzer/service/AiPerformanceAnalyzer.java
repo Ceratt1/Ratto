@@ -10,7 +10,13 @@ import reactor.core.publisher.Mono;
 
 public interface AiPerformanceAnalyzer {
 
-    Mono<PerformanceAnalysisResult> analyze(
+    Mono<GeneratedAnalysis> analyze(
             StudyPerformanceAnalysisRequestedEvent event,
             List<Reference> webReferences);
+
+    record GeneratedAnalysis(
+            PerformanceAnalysisResult result,
+            String provider,
+            String model) {
+    }
 }

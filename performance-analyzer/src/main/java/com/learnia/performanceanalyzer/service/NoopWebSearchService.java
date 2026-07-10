@@ -9,7 +9,7 @@ import com.learnia.events.StudyPerformanceAnalysisGeneratedEvent.Reference;
 import com.learnia.events.StudyPerformanceAnalysisRequestedEvent;
 
 @Service
-@ConditionalOnProperty(name = "web-search.enabled", havingValue = "false", matchIfMissing = true)
+@ConditionalOnProperty(name = "web-search.enabled", havingValue = "false")
 public class NoopWebSearchService implements WebSearchService {
 
     @Override

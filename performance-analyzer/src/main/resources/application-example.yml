@@ -10,12 +10,19 @@ kafka:
 ai:
   base-url: https://generativelanguage.googleapis.com/v1beta
   api-key:
-  model: gemini-3.1-flash-lite
+  model: gemini-3.5-flash
+  fallback-models: gemini-2.5-flash,gemini-3.1-flash-lite
   temperature: 0.2
   max-output-tokens: 8192
 
+openrouter:
+  enabled: true
+  base-url: https://openrouter.ai/api/v1
+  api-key:
+  model: openrouter/free
+
 web-search:
-  enabled: false
+  enabled: true
 
 server:
   port: 9090

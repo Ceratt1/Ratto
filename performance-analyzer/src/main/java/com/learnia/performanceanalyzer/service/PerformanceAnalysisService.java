@@ -12,8 +12,8 @@ import com.learnia.events.EventMetadata;
 import com.learnia.events.EventTopics;
 import com.learnia.events.EventTypes;
 import com.learnia.events.StudyPerformanceAnalysisGeneratedEvent;
-import com.learnia.events.StudyPerformanceAnalysisGeneratedEvent.PerformanceAnalysisResult;
 import com.learnia.events.StudyPerformanceAnalysisRequestedEvent;
+import com.learnia.performanceanalyzer.service.AiPerformanceAnalyzer.GeneratedAnalysis;
 
 import reactor.core.publisher.Mono;
 
@@ -22,17 +22,14 @@ public class PerformanceAnalysisService {
 
     private final WebSearchService webSearchService;
     private final AiPerformanceAnalyzer aiPerformanceAnalyzer;
-    private final GeminiPerformanceAnalyzer geminiPerformanceAnalyzer;
     private final KafkaTemplate<String, StudyPerformanceAnalysisGeneratedEvent> generatedEventKafkaTemplate;
 
     public PerformanceAnalysisService(
             WebSearchService webSearchService,
             AiPerformanceAnalyzer aiPerformanceAnalyzer,
-            GeminiPerformanceAnalyzer geminiPerformanceAnalyzer,
             KafkaTemplate<String, StudyPerformanceAnalysisGeneratedEvent> generatedEventKafkaTemplate) {
         this.webSearchService = webSearchService;
         this.aiPerformanceAnalyzer = aiPerformanceAnalyzer;
-        this.geminiPerformanceAnalyzer = geminiPerformanceAnalyzer;
         this.generatedEventKafkaTemplate = generatedEventKafkaTemplate;
     }
 
@@ -49,7 +46,7 @@ public class PerformanceAnalysisService {
 
     private StudyPerformanceAnalysisGeneratedEvent toGeneratedEvent(
             StudyPerformanceAnalysisRequestedEvent event,
-            PerformanceAnalysisResult result) {
+            GeneratedAnalysis generatedAnalysis) {
         EventMetadata source = event.metadata();
         return new StudyPerformanceAnalysisGeneratedEvent(
                 new EventMetadata(
@@ -66,8 +63,8 @@ public class PerformanceAnalysisService {
                 event.problemSetId(),
                 event.attemptId(),
                 event.analysisRequestId(),
-                geminiPerformanceAnalyzer.provider(),
-                geminiPerformanceAnalyzer.model(),
-                result);
+                generatedAnalysis.provider(),
+                generatedAnalysis.model(),
+                generatedAnalysis.result());
     }
 }
